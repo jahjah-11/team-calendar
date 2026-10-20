@@ -22,7 +22,6 @@ const INITIAL_MEMBERS = [
   { id: "15", name: "ส.ต.ต. บุญตะวัน เรืองธรรม" },
 ];
 
-// ตัวอย่างตารางงานที่มีช่วงเวลาและสีภารกิจ
 const INITIAL_SHIFTS = [
   { 
     id: "101", 
@@ -32,7 +31,7 @@ const INITIAL_SHIFTS = [
     startTime: "08:30",
     endTime: "12:00",
     title: "พิธีเปิดโครงการอาสาสมัคร", 
-    type: "attend" // สีฟ้า: ร่วมงาน
+    type: "attend"
   },
   { 
     id: "102", 
@@ -42,7 +41,7 @@ const INITIAL_SHIFTS = [
     startTime: "08:30",
     endTime: "16:30",
     title: "ถ่ายภาพกิจกรรมพิธีเปิด", 
-    type: "photo" // สีเหลือง: ช่างภาพ
+    type: "photo"
   },
   { 
     id: "103", 
@@ -52,7 +51,7 @@ const INITIAL_SHIFTS = [
     startTime: "08:00",
     endTime: "16:00",
     title: "เวรประจำจุดตรวจ", 
-    type: "general" // ปกติ
+    type: "general"
   },
 ];
 
@@ -61,11 +60,13 @@ export default function TeamCalendarPage() {
   const [selectedMember, setSelectedMember] = useState<string>("all");
   const [shifts, setShifts] = useState(INITIAL_SHIFTS);
 
-  // State สำหรับ Modal จัดการกำลังพล
+  // กำหนดค่าเดือนปัจจุบัน (ตั้งต้นที่ ตุลาคม 2026)
+  const [currentYear, setCurrentYear] = useState(2026);
+  const [currentMonth, setCurrentMonth] = useState(9); // 9 คือ ตุลาคม (0-11)
+
+  // State สำหรับ Modal
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
-
-  // State สำหรับ Modal ลงตารางงาน
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [shiftMemberId, setShiftMemberId] = useState(members[0]?.id || "1");
   const [shiftDate, setShiftDate] = useState("2026-10-20");
@@ -74,67 +75,103 @@ export default function TeamCalendarPage() {
   const [shiftTitle, setShiftTitle] = useState("");
   const [shiftType, setShiftType] = useState<"attend" | "photo" | "general">("attend");
 
-  // ฟังก์ชันเพิ่มกำลังพลใหม่
+  // ฟังก์ชันคำนวณวันในเดือนแบบเต็มเดือน
+  const getDaysInMonth = (year: number, month: number) => {
+    const date = new Date(year, month, 1);
+    const days = [];
+    const firstDayIndex = date.getDay(); // วันในสัปดาห์ของวันแรกของเดือน (0=อาทิตย์)
+
+    // หาจำนวนวันทั้งหมดในเดือนนั้น
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    // ช่องว่างก่อนวันแรกของเดือน
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+
+    // วันจริงในเดือน
+    for (let i = 1; i <= totalDays; i++) {
+      days.push(i);
+    }
+
+    return days;
+  };
+
+  const daysArray = getDaysInMonth(currentYear, currentMonth);
+  const monthNames = [
+    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+  ];
+
+  // เปลี่ยนเดือน
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else {
+      setCurrentMonth(currentMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(currentMonth + 1);
+    }
+  };
+
+  // ฟังก์ชันจัดการกำลังพลและงาน
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemberName.trim()) return;
-
-    const newMember = {
-      id: Date.now().toString(),
-      name: newMemberName.trim(),
-    };
-
-    setMembers([...members, newMember]);
+    setMembers([...members, { id: Date.now().toString(), name: newMemberName.trim() }]);
     setNewMemberName("");
   };
 
-  // ฟังก์ชันลบกำลังพล
   const handleDeleteMember = (id: string) => {
     setMembers(members.filter((m) => m.id !== id));
     setShifts(shifts.filter((s) => s.memberId !== id));
     if (selectedMember === id) setSelectedMember("all");
   };
 
-  // ฟังก์ชันเพิ่มตารางงานใหม่
   const handleAddShift = (e: React.FormEvent) => {
     e.preventDefault();
     if (!shiftTitle.trim()) return;
-
     const member = members.find((m) => m.id === shiftMemberId);
     if (!member) return;
 
-    const newShift = {
-      id: Date.now().toString(),
-      memberId: member.id,
-      memberName: member.name,
-      date: shiftDate,
-      startTime: shiftStartTime,
-      endTime: shiftEndTime,
-      title: shiftTitle.trim(),
-      type: shiftType,
-    };
-
-    setShifts([...shifts, newShift]);
+    setShifts([
+      ...shifts,
+      {
+        id: Date.now().toString(),
+        memberId: member.id,
+        memberName: member.name,
+        date: shiftDate,
+        startTime: shiftStartTime,
+        endTime: shiftEndTime,
+        title: shiftTitle.trim(),
+        type: shiftType,
+      },
+    ]);
     setShiftTitle("");
     setIsShiftModalOpen(false);
   };
 
-  // ฟังก์ชันลบตารางงาน
   const handleDeleteShift = (shiftId: string) => {
     setShifts(shifts.filter((s) => s.id !== shiftId));
   };
 
-  // กรองตารางงานตามสมาชิก
   const filteredShifts =
     selectedMember === "all" ? shifts : shifts.filter((s) => s.memberId === selectedMember);
 
-  // สไตล์ภารกิจ
   const getTaskStyle = (type: string) => {
     switch (type) {
       case "attend":
-        return "bg-sky-500/10 border-sky-400 text-sky-900"; // สีฟ้า: ร่วมงาน
+        return "bg-sky-500/10 border-sky-300 text-sky-900";
       case "photo":
-        return "bg-amber-500/20 border-amber-400 text-amber-950 font-medium"; // สีเหลือง: ช่างภาพ
+        return "bg-amber-500/15 border-amber-300 text-amber-950 font-medium";
       default:
         return "bg-slate-100 border-slate-200 text-slate-800";
     }
@@ -143,148 +180,152 @@ export default function TeamCalendarPage() {
   const getTaskBadge = (type: string) => {
     switch (type) {
       case "attend":
-        return <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-sky-600 bg-sky-100 px-1.5 py-0.5 rounded"><Handshake className="w-3 h-3" /> ร่วมงาน</span>;
+        return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-sky-700 bg-sky-100 px-1 py-0.5 rounded"><Handshake className="w-2.5 h-2.5" /> ร่วมงาน</span>;
       case "photo":
-        return <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-800 bg-amber-200 px-1.5 py-0.5 rounded"><Camera className="w-3 h-3" /> ช่างภาพ</span>;
+        return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-800 bg-amber-200 px-1 py-0.5 rounded"><Camera className="w-2.5 h-2.5" /> ช่างภาพ</span>;
       default:
         return null;
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-6">
+    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6">
       {/* Header */}
-      <header className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+      <header className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <CalendarIcon className="w-7 h-7 text-blue-600" />
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <CalendarIcon className="w-6 h-6 text-blue-600" />
             ตารางปฏิบัติงานจิตอาสา
           </h1>
-          <p className="text-sm text-slate-500 mt-1">ระบบจัดการกะงานและภารกิจจิตอาสา กก.ตชด.๒๓</p>
+          <p className="text-xs md:text-sm text-slate-500 mt-0.5">ระบบจัดการกะงานและภารกิจจิตอาสา กก.ตชด.๒๓</p>
         </div>
 
-        {/* Legend คำอธิบายสี + ปุ่มจัดการกำลังพล + ตัวกรอง */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-xs">
             <span className="flex items-center gap-1 font-medium text-sky-700">
-              <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> ร่วมงาน (ฟ้า)
+              <span className="w-2 h-2 rounded-full bg-sky-500 inline-block" /> ร่วมงาน
             </span>
             <span className="text-slate-300">|</span>
             <span className="flex items-center gap-1 font-medium text-amber-800">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" /> ช่างภาพ (เหลือง)
+              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> ช่างภาพ
             </span>
           </div>
 
           <button
             onClick={() => setIsMemberModalOpen(true)}
-            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-lg text-sm font-medium transition"
+            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition"
           >
             <Users className="w-4 h-4 text-slate-600" />
-            กำลังพล ({members.length} นาย)
+            กำลังพล ({members.length})
           </button>
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-slate-600 flex items-center gap-1">
-              <User className="w-4 h-4" /> ดูเฉพาะ:
-            </label>
-            <select
-              value={selectedMember}
-              onChange={(e) => setSelectedMember(e.target.value)}
-              className="bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[220px]"
-            >
-              <option value="all">กำลังพลทุกนาย</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={selectedMember}
+            onChange={(e) => setSelectedMember(e.target.value)}
+            className="bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[180px]"
+          >
+            <option value="all">กำลังพลทุกนาย</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
         </div>
       </header>
 
       {/* Main Calendar Card */}
-      <main className="max-w-6xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <main className="max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {/* Calendar Controller */}
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
-            <button className="p-2 hover:bg-white rounded-lg border border-slate-200 transition">
+            <button onClick={handlePrevMonth} className="p-2 hover:bg-white rounded-lg border border-slate-200 transition">
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="font-semibold text-lg px-2">ตุลาคม 2026</span>
-            <button className="p-2 hover:bg-white rounded-lg border border-slate-200 transition">
+            <span className="font-semibold text-base md:text-lg px-2">
+              {monthNames[currentMonth]} {currentYear + 543} {/* แสดงปี พ.ศ. */}
+            </span>
+            <button onClick={handleNextMonth} className="p-2 hover:bg-white rounded-lg border border-slate-200 transition">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
           <button
             onClick={() => setIsShiftModalOpen(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition shadow-sm"
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs md:text-sm font-medium transition shadow-sm"
           >
             <Plus className="w-4 h-4" /> ลงตารางงาน
           </button>
         </div>
 
         {/* Calendar Grid Header */}
-        <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-100/50 text-center text-xs font-semibold text-slate-500 py-3">
-          <div>อาทิตย์</div>
-          <div>จันทร์</div>
-          <div>อังคาร</div>
-          <div>พุธ</div>
-          <div>พฤหัสบดี</div>
-          <div>ศุกร์</div>
-          <div>เสาร์</div>
+        <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-100/50 text-center text-xs font-semibold text-slate-500 py-2.5">
+          <div>อา.</div>
+          <div>จ.</div>
+          <div>อ.</div>
+          <div>พ.</div>
+          <div>พฤ.</div>
+          <div>ศ.</div>
+          <div>ส.</div>
         </div>
 
-        {/* Grid View */}
-        <div className="grid grid-cols-7 min-h-[440px] divide-x divide-y divide-slate-100">
-          {[18, 19, 20, 21, 22, 23, 24].map((day) => {
-            const dateStr = `2026-10-${day}`;
+        {/* Grid View (Full Month) */}
+        <div className="grid grid-cols-7 divide-x divide-y divide-slate-100 bg-slate-50/20">
+          {daysArray.map((day, index) => {
+            if (day === null) {
+              return <div key={`empty-${index}`} className="min-h-[100px] md:min-h-[130px] bg-slate-50/40" />;
+            }
+
+            // จัดรูปแบบวันที่ให้ตรงกับรูปแบบเก็บข้อมูล YYYY-MM-DD
+            const formattedDay = day < 10 ? `0${day}` : `${day}`;
+            const formattedMonth = currentMonth + 1 < 10 ? `0${currentMonth + 1}` : `${currentMonth + 1}`;
+            const dateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
+
             const dayShifts = filteredShifts.filter((s) => s.date === dateStr);
-            const isToday = day === 20;
+            const isToday = currentYear === 2026 && currentMonth === 9 && day === 20;
 
             return (
-              <div key={day} className={`p-2 min-h-[140px] transition ${isToday ? "bg-blue-50/30" : "bg-white"}`}>
-                <div className="flex justify-between items-center mb-2">
+              <div key={day} className={`p-1.5 md:p-2 min-h-[100px] md:min-h-[130px] transition ${isToday ? "bg-blue-50/40" : "bg-white"}`}>
+                <div className="flex justify-between items-center mb-1">
                   <span
-                    className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${
+                    className={`text-xs font-semibold w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full ${
                       isToday ? "bg-blue-600 text-white" : "text-slate-600"
                     }`}
                   >
                     {day}
                   </span>
-                  {isToday && <span className="text-[10px] text-blue-600 font-bold">วันนี้</span>}
                 </div>
 
-                {/* Shift Items */}
-                <div className="space-y-1.5">
+                {/* Shift Items (กระชับและไม่รกตา) */}
+                <div className="space-y-1 overflow-y-auto max-h-[100px]">
                   {dayShifts.map((shift) => (
                     <div
                       key={shift.id}
-                      className={`text-xs p-2 rounded-lg border relative group transition ${getTaskStyle(
-                        shift.type
-                      )}`}
+                      className={`text-[11px] p-1.5 rounded-md border relative group transition ${getTaskStyle(shift.type)}`}
                     >
                       <button
                         onClick={() => handleDeleteShift(shift.id)}
                         className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 transition"
                         title="ลบภารกิจ"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-3 h-3" />
                       </button>
 
-                      <div className="flex items-center justify-between mb-1">
-                        <div>{getTaskBadge(shift.type)}</div>
-                        {(shift.startTime || shift.endTime) && (
-                          <span className="text-[10px] font-semibold flex items-center gap-0.5 text-slate-600 bg-white/60 px-1 py-0.5 rounded border border-slate-200/50">
-                            <Clock className="w-2.5 h-2.5 text-slate-500" />
-                            {shift.startTime}{shift.endTime ? `-${shift.endTime}` : ""} น.
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        {getTaskBadge(shift.type)}
+                        {shift.startTime && (
+                          <span className="text-[9px] text-slate-500 font-medium">
+                            {shift.startTime}
                           </span>
                         )}
                       </div>
 
-                      <div className="font-semibold text-slate-900 leading-tight">{shift.memberName}</div>
-                      <div className="text-[11px] text-slate-600 mt-0.5">{shift.title}</div>
+                      <div className="font-semibold text-slate-900 truncate leading-tight" title={shift.memberName}>
+                        {shift.memberName.replace(/^(พ.ต.ท.หญิง|ร.ต.อ.|ร.ต.ท.|ด.ต.หญิง|ด.ต.|ร.ต.ต.|จ.ส.ต.|ส.ต.อ.|ส.ต.ท.|ส.ต.ต.)\s*/, "")}
+                      </div>
+                      <div className="text-[10px] text-slate-600 truncate" title={shift.title}>
+                        {shift.title}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -333,12 +374,9 @@ export default function TeamCalendarPage() {
                 />
               </div>
 
-              {/* ช่องเลือกเวลาปฏิบัติงาน */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1 mb-1">
-                    <Clock className="w-3.5 h-3.5 text-blue-600" /> เวลาเริ่ม
-                  </label>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาเริ่ม</label>
                   <input
                     type="time"
                     value={shiftStartTime}
@@ -347,9 +385,7 @@ export default function TeamCalendarPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1 mb-1">
-                    <Clock className="w-3.5 h-3.5 text-blue-600" /> เวลาสิ้นสุด
-                  </label>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาสิ้นสุด</label>
                   <input
                     type="time"
                     value={shiftEndTime}
@@ -360,30 +396,30 @@ export default function TeamCalendarPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">ประเภทภารกิจ (เลือกสีแสดงผล)</label>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">ประเภทภารกิจ</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setShiftType("attend")}
-                    className={`p-2.5 rounded-lg border text-xs font-semibold flex items-center gap-2 transition ${
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
                       shiftType === "attend"
                         ? "bg-sky-500 text-white border-sky-600 ring-2 ring-sky-300"
                         : "bg-sky-50 text-sky-800 border-sky-200"
                     }`}
                   >
-                    <Handshake className="w-4 h-4" /> ร่วมงาน (สีฟ้า)
+                    <Handshake className="w-3.5 h-3.5" /> ร่วมงาน (ฟ้า)
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShiftType("photo")}
-                    className={`p-2.5 rounded-lg border text-xs font-semibold flex items-center gap-2 transition ${
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
                       shiftType === "photo"
                         ? "bg-amber-400 text-amber-950 border-amber-500 ring-2 ring-amber-300"
                         : "bg-amber-50 text-amber-900 border-amber-200"
                     }`}
                   >
-                    <Camera className="w-4 h-4" /> ช่างภาพ (สีเหลือง)
+                    <Camera className="w-3.5 h-3.5" /> ช่างภาพ (เหลือง)
                   </button>
                 </div>
               </div>
@@ -434,7 +470,7 @@ export default function TeamCalendarPage() {
               />
               <button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium transition shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition shrink-0"
               >
                 เพิ่ม
               </button>
