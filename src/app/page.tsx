@@ -46,7 +46,6 @@ const INITIAL_MEMBERS = [
   { id: "15", name: "ส.ต.ต. บุญตะวัน เรืองธรรม" },
 ];
 
-// ลบข้อมูลภารกิจตัวอย่างออกแล้ว (เริ่มต้นเป็นอาเรย์ว่าง)
 const INITIAL_SHIFTS: ShiftItem[] = [];
 
 export default function TeamCalendarPage() {
@@ -61,7 +60,17 @@ export default function TeamCalendarPage() {
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
-  const [activeShiftDetail, setActiveShiftDetail] = useState<ShiftItem | null>(null);
+  
+  // เก็บอาเรย์ของคนที่อยู่ในกลุ่มภารกิจนั้นๆ เมื่อกดดูรายละเอียด
+  const [activeGroupDetail, setActiveGroupDetail] = useState<{
+    date: string;
+    title: string;
+    type: string;
+    startTime: string;
+    endTime: string;
+    items: ShiftItem[];
+  } | null>(null);
+
   const [showStats, setShowStats] = useState(true);
 
   const [shiftMemberId, setShiftMemberId] = useState(members[0]?.id || "1");
@@ -144,7 +153,7 @@ export default function TeamCalendarPage() {
 
   const handleDeleteShift = (shiftId: string) => {
     setShifts(shifts.filter((s) => s.id !== shiftId));
-    setActiveShiftDetail(null);
+    setActiveGroupDetail(null);
   };
 
   const handleExportCSV = () => {
@@ -309,7 +318,7 @@ export default function TeamCalendarPage() {
         </div>
       </header>
 
-      {/* Calendar Main (ส่วนตารางปฏิทินแสดงด้านบน) */}
+      {/* Calendar Main */}
       <main className="max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
@@ -353,6 +362,18 @@ export default function TeamCalendarPage() {
             const dateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
 
             const dayShifts = filteredShifts.filter((s) => s.date === dateStr);
+
+            // จัดกลุ่มภารกิจที่ชื่อเดียวกันและประเภทเดียวกันให้อยู่ในการ์ดใบเดียว
+            const groupedShiftsMap: { [key: string]: ShiftItem[] } = {};
+            dayShifts.forEach((s) => {
+              const groupKey = `${s.title}_${s.type}_${s.startTime}`;
+              if (!groupedShiftsMap[groupKey]) {
+                groupedShiftsMap[groupKey] = [];
+              }
+              groupedShiftsMap[groupKey].push(s);
+            });
+
+            const groupedShifts = Object.values(groupedShiftsMap);
             const isToday = currentYear === 2026 && currentMonth === 9 && day === 20;
 
             return (
@@ -368,29 +389,43 @@ export default function TeamCalendarPage() {
                 </div>
 
                 <div className="space-y-1 overflow-y-auto max-h-[100px]">
-                  {dayShifts.map((shift) => (
-                    <div
-                      key={shift.id}
-                      onClick={() => setActiveShiftDetail(shift)}
-                      className={`text-[11px] p-1.5 rounded-md border cursor-pointer transition ${getTaskStyle(shift.type)}`}
-                    >
-                      <div className="flex items-center justify-between gap-1 mb-0.5">
-                        {getTaskBadge(shift.type)}
-                        {shift.startTime && (
-                          <span className="text-[9px] text-slate-500 font-medium">
-                            {shift.startTime}
-                          </span>
-                        )}
-                      </div>
+                  {groupedShifts.map((group, gIdx) => {
+                    const firstItem = group[0];
+                    const namesSummary = group.map((item) => getFirstNameOnly(item.memberName)).join(", ");
 
-                      <div className="font-semibold text-slate-900 truncate leading-tight">
-                        {getFirstNameOnly(shift.memberName)}
+                    return (
+                      <div
+                        key={gIdx}
+                        onClick={() =>
+                          setActiveGroupDetail({
+                            date: dateStr,
+                            title: firstItem.title,
+                            type: firstItem.type,
+                            startTime: firstItem.startTime,
+                            endTime: firstItem.endTime,
+                            items: group,
+                          })
+                        }
+                        className={`text-[11px] p-1.5 rounded-md border cursor-pointer transition ${getTaskStyle(firstItem.type)}`}
+                      >
+                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                          {getTaskBadge(firstItem.type)}
+                          {group.length > 1 && (
+                            <span className="text-[9px] bg-slate-900 text-white px-1 rounded-full font-bold">
+                              {group.length} นาย
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="font-semibold text-slate-900 truncate leading-tight">
+                          {namesSummary}
+                        </div>
+                        <div className="text-[10px] text-slate-600 truncate">
+                          {firstItem.title}
+                        </div>
                       </div>
-                      <div className="text-[10px] text-slate-600 truncate">
-                        {shift.title}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -398,7 +433,7 @@ export default function TeamCalendarPage() {
         </div>
       </main>
 
-      {/* สรุปสถิติประจำเดือน (แสดงไว้ด้านล่างของปฏิทิน) */}
+      {/* สรุปสถิติประจำเดือน */}
       {showStats && (
         <section className="max-w-7xl mx-auto space-y-4">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
@@ -407,7 +442,6 @@ export default function TeamCalendarPage() {
               สรุปสถิติประจำเดือน {monthNames[currentMonth]} {currentYear + 543}
             </h2>
 
-            {/* การ์ดสรุป 4 ช่อง */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-sky-50 border border-sky-100 p-3.5 rounded-xl">
                 <span className="text-xs text-sky-700 font-medium block">ร่วมงานทั้งหมด</span>
@@ -427,7 +461,6 @@ export default function TeamCalendarPage() {
               </div>
             </div>
 
-            {/* ตารางสรุปรายบุคคล */}
             <div className="mt-5 overflow-x-auto">
               <h3 className="text-xs font-semibold text-slate-500 mb-2">ตารางสรุปการปฏิบัติงานรายบุคคล</h3>
               <table className="w-full text-xs text-left border-collapse">
@@ -457,54 +490,58 @@ export default function TeamCalendarPage() {
         </section>
       )}
 
-      {/* Modal ป๊อบอัพรายละเอียดภารกิจเมื่อกดที่ตัวงาน */}
-      {activeShiftDetail && (
+      {/* Modal ป๊อบอัพแสดงรายละเอียดภารกิจแบบกลุ่ม */}
+      {activeGroupDetail && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100">
             <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 flex items-center gap-2 text-base">
                 <Info className="w-5 h-5 text-blue-600" /> รายละเอียดภารกิจ
               </h3>
-              <button onClick={() => setActiveShiftDetail(null)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setActiveGroupDetail(null)} className="p-1 text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3 text-sm">
               <div>
-                <span className="text-xs text-slate-400 block font-medium">กำลังพล</span>
-                <span className="font-semibold text-slate-800 text-base">{activeShiftDetail.memberName}</span>
-              </div>
-
-              <div>
                 <span className="text-xs text-slate-400 block font-medium">ภารกิจ / การลา</span>
-                <span className="font-medium text-slate-700">{activeShiftDetail.title}</span>
+                <span className="font-semibold text-slate-800 text-base">{activeGroupDetail.title}</span>
               </div>
 
               <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <div>
                   <span className="text-xs text-slate-400 block font-medium">วันที่</span>
-                  <span className="font-medium text-slate-700">{activeShiftDetail.date}</span>
+                  <span className="font-medium text-slate-700">{activeGroupDetail.date}</span>
                 </div>
                 <div>
                   <span className="text-xs text-slate-400 block font-medium">เวลา</span>
-                  <span className="font-medium text-slate-700">{activeShiftDetail.startTime} - {activeShiftDetail.endTime} น.</span>
+                  <span className="font-medium text-slate-700">{activeGroupDetail.startTime} - {activeGroupDetail.endTime} น.</span>
                 </div>
               </div>
 
               <div>
                 <span className="text-xs text-slate-400 block mb-1 font-medium">ประเภท</span>
-                {getTaskBadge(activeShiftDetail.type)}
+                {getTaskBadge(activeGroupDetail.type)}
               </div>
-            </div>
 
-            <div className="mt-6 pt-3 border-t border-slate-100 flex gap-2">
-              <button
-                onClick={() => handleDeleteShift(activeShiftDetail.id)}
-                className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 py-2.5 rounded-xl text-sm font-medium transition flex items-center justify-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" /> ลบภารกิจนี้
-              </button>
+              <div>
+                <span className="text-xs text-slate-400 block mb-1.5 font-medium">กำลังพลที่ปฏิบัติงานร่วมกัน ({activeGroupDetail.items.length} นาย)</span>
+                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                  {activeGroupDetail.items.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100 text-xs">
+                      <span className="font-medium text-slate-800">{item.memberName}</span>
+                      <button
+                        onClick={() => handleDeleteShift(item.id)}
+                        className="text-slate-400 hover:text-rose-600 transition p-1"
+                        title="ลบรายชื่อนี้ออก"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
