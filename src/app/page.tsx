@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, User, Calendar as CalendarIcon, Users, Trash2, X, Camera, Handshake } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, User, Calendar as CalendarIcon, Users, Trash2, X, Camera, Handshake, Clock } from "lucide-react";
 
 // รายชื่อกำลังพล (15 นาย)
 const INITIAL_MEMBERS = [
@@ -22,13 +22,15 @@ const INITIAL_MEMBERS = [
   { id: "15", name: "ส.ต.ต. บุญตะวัน เรืองธรรม" },
 ];
 
-// ตัวอย่างตารางงานที่มีสีภารกิจ
+// ตัวอย่างตารางงานที่มีช่วงเวลาและสีภารกิจ
 const INITIAL_SHIFTS = [
   { 
     id: "101", 
     memberId: "1", 
     memberName: "พ.ต.ท.หญิง ดวงกมล สรไกร", 
     date: "2026-10-20", 
+    startTime: "08:30",
+    endTime: "12:00",
     title: "พิธีเปิดโครงการอาสาสมัคร", 
     type: "attend" // สีฟ้า: ร่วมงาน
   },
@@ -37,6 +39,8 @@ const INITIAL_SHIFTS = [
     memberId: "7", 
     memberName: "ด.ต. เทพสุพรรณ ไชยรบ", 
     date: "2026-10-20", 
+    startTime: "08:30",
+    endTime: "16:30",
     title: "ถ่ายภาพกิจกรรมพิธีเปิด", 
     type: "photo" // สีเหลือง: ช่างภาพ
   },
@@ -45,6 +49,8 @@ const INITIAL_SHIFTS = [
     memberId: "11", 
     memberName: "ส.ต.อ. ทินกรณ์ หล่าบุตรศรี", 
     date: "2026-10-21", 
+    startTime: "08:00",
+    endTime: "16:00",
     title: "เวรประจำจุดตรวจ", 
     type: "general" // ปกติ
   },
@@ -63,6 +69,8 @@ export default function TeamCalendarPage() {
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [shiftMemberId, setShiftMemberId] = useState(members[0]?.id || "1");
   const [shiftDate, setShiftDate] = useState("2026-10-20");
+  const [shiftStartTime, setShiftStartTime] = useState("08:30");
+  const [shiftEndTime, setShiftEndTime] = useState("16:30");
   const [shiftTitle, setShiftTitle] = useState("");
   const [shiftType, setShiftType] = useState<"attend" | "photo" | "general">("attend");
 
@@ -100,6 +108,8 @@ export default function TeamCalendarPage() {
       memberId: member.id,
       memberName: member.name,
       date: shiftDate,
+      startTime: shiftStartTime,
+      endTime: shiftEndTime,
       title: shiftTitle.trim(),
       type: shiftType,
     };
@@ -148,9 +158,9 @@ export default function TeamCalendarPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <CalendarIcon className="w-7 h-7 text-blue-600" />
-            ตารางเวรปฏิบัติราชการ (Duty Roster)
+            ตารางปฏิบัติงานจิตอาสา
           </h1>
-          <p className="text-sm text-slate-500 mt-1">ระบบจัดการกะงานและภารกิจกำลังพล</p>
+          <p className="text-sm text-slate-500 mt-1">ระบบจัดการกะงานและภารกิจจิตอาสา กก.ตชด.๒๓</p>
         </div>
 
         {/* Legend คำอธิบายสี + ปุ่มจัดการกำลังพล + ตัวกรอง */}
@@ -263,7 +273,16 @@ export default function TeamCalendarPage() {
                         <X className="w-3.5 h-3.5" />
                       </button>
 
-                      <div className="mb-1">{getTaskBadge(shift.type)}</div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div>{getTaskBadge(shift.type)}</div>
+                        {(shift.startTime || shift.endTime) && (
+                          <span className="text-[10px] font-semibold flex items-center gap-0.5 text-slate-600 bg-white/60 px-1 py-0.5 rounded border border-slate-200/50">
+                            <Clock className="w-2.5 h-2.5 text-slate-500" />
+                            {shift.startTime}{shift.endTime ? `-${shift.endTime}` : ""} น.
+                          </span>
+                        )}
+                      </div>
+
                       <div className="font-semibold text-slate-900 leading-tight">{shift.memberName}</div>
                       <div className="text-[11px] text-slate-600 mt-0.5">{shift.title}</div>
                     </div>
@@ -314,6 +333,32 @@ export default function TeamCalendarPage() {
                 />
               </div>
 
+              {/* ช่องเลือกเวลาปฏิบัติงาน */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1 mb-1">
+                    <Clock className="w-3.5 h-3.5 text-blue-600" /> เวลาเริ่ม
+                  </label>
+                  <input
+                    type="time"
+                    value={shiftStartTime}
+                    onChange={(e) => setShiftStartTime(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 flex items-center gap-1 mb-1">
+                    <Clock className="w-3.5 h-3.5 text-blue-600" /> เวลาสิ้นสุด
+                  </label>
+                  <input
+                    type="time"
+                    value={shiftEndTime}
+                    onChange={(e) => setShiftEndTime(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">ประเภทภารกิจ (เลือกสีแสดงผล)</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -347,7 +392,7 @@ export default function TeamCalendarPage() {
                 <label className="text-xs font-semibold text-slate-600 block mb-1">รายละเอียดภารกิจ / เวร</label>
                 <input
                   type="text"
-                  placeholder="เช่น พิธีมอบทุนการศึกษา (09:00 น.)"
+                  placeholder="เช่น พิธีมอบทุนการศึกษา"
                   value={shiftTitle}
                   onChange={(e) => setShiftTitle(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
