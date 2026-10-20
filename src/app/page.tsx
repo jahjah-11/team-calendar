@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, User, Calendar as CalendarIcon, Users, Trash2, X, Camera, Handshake, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, User, Calendar as CalendarIcon, Users, Trash2, X, Camera, Handshake, LogOut } from "lucide-react";
 
 // รายชื่อกำลังพล (15 นาย)
 const INITIAL_MEMBERS = [
@@ -50,8 +50,8 @@ const INITIAL_SHIFTS = [
     date: "2026-10-21", 
     startTime: "08:00",
     endTime: "16:00",
-    title: "เวรประจำจุดตรวจ", 
-    type: "general"
+    title: "ลาป่วย", 
+    type: "leave"
   },
 ];
 
@@ -60,9 +60,9 @@ export default function TeamCalendarPage() {
   const [selectedMember, setSelectedMember] = useState<string>("all");
   const [shifts, setShifts] = useState(INITIAL_SHIFTS);
 
-  // กำหนดค่าเดือนปัจจุบัน (ตั้งต้นที่ ตุลาคม 2026)
+  // กำหนดค่าเดือนปัจจุบัน
   const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(9); // 9 คือ ตุลาคม (0-11)
+  const [currentMonth, setCurrentMonth] = useState(9); // 9 คือ ตุลาคม
 
   // State สำหรับ Modal
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
@@ -73,23 +73,19 @@ export default function TeamCalendarPage() {
   const [shiftStartTime, setShiftStartTime] = useState("08:30");
   const [shiftEndTime, setShiftEndTime] = useState("16:30");
   const [shiftTitle, setShiftTitle] = useState("");
-  const [shiftType, setShiftType] = useState<"attend" | "photo" | "general">("attend");
+  const [shiftType, setShiftType] = useState<"attend" | "photo" | "general" | "leave">("attend");
 
   // ฟังก์ชันคำนวณวันในเดือนแบบเต็มเดือน
   const getDaysInMonth = (year: number, month: number) => {
     const date = new Date(year, month, 1);
     const days = [];
-    const firstDayIndex = date.getDay(); // วันในสัปดาห์ของวันแรกของเดือน (0=อาทิตย์)
-
-    // หาจำนวนวันทั้งหมดในเดือนนั้น
+    const firstDayIndex = date.getDay();
     const totalDays = new Date(year, month + 1, 0).getDate();
 
-    // ช่องว่างก่อนวันแรกของเดือน
     for (let i = 0; i < firstDayIndex; i++) {
       days.push(null);
     }
 
-    // วันจริงในเดือน
     for (let i = 1; i <= totalDays; i++) {
       days.push(i);
     }
@@ -103,7 +99,6 @@ export default function TeamCalendarPage() {
     "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
   ];
 
-  // เปลี่ยนเดือน
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
       setCurrentMonth(11);
@@ -122,7 +117,6 @@ export default function TeamCalendarPage() {
     }
   };
 
-  // ฟังก์ชันจัดการกำลังพลและงาน
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemberName.trim()) return;
@@ -163,6 +157,16 @@ export default function TeamCalendarPage() {
     setShifts(shifts.filter((s) => s.id !== shiftId));
   };
 
+  // ฟังก์ชันดึงเฉพาะ "ชื่อ" ตัดยศ คำนำหน้า และนามสกุลออก
+  const getFirstNameOnly = (fullName: string) => {
+    if (!fullName) return "";
+    // ตัดยศและคำนำหน้าออก
+    const nameWithoutRank = fullName.replace(/^(พ\.ต\.ท\.หญิง|พ\.ต\.ท\.|ร\.ต\.อ\.|ร\.ต\.ท\.|ร\.ต\.ต\.|ด\.ต\.หญิง|ด\.ต\.|จ\.ส\.ต\.|ส\.ต\.อ\.|ส\.ต\.ท\.|ส\.ต\.ต\.|นาย|นาง|นางสาว)\s*/, "").trim();
+    // แยกตามช่องว่าง แล้วดึงเฉพาะชื่อแรก
+    const parts = nameWithoutRank.split(/\s+/);
+    return parts[0] || fullName;
+  };
+
   const filteredShifts =
     selectedMember === "all" ? shifts : shifts.filter((s) => s.memberId === selectedMember);
 
@@ -172,6 +176,8 @@ export default function TeamCalendarPage() {
         return "bg-sky-500/10 border-sky-300 text-sky-900";
       case "photo":
         return "bg-amber-500/15 border-amber-300 text-amber-950 font-medium";
+      case "leave":
+        return "bg-rose-500/15 border-rose-300 text-rose-950 font-medium";
       default:
         return "bg-slate-100 border-slate-200 text-slate-800";
     }
@@ -183,6 +189,8 @@ export default function TeamCalendarPage() {
         return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-sky-700 bg-sky-100 px-1 py-0.5 rounded"><Handshake className="w-2.5 h-2.5" /> ร่วมงาน</span>;
       case "photo":
         return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-800 bg-amber-200 px-1 py-0.5 rounded"><Camera className="w-2.5 h-2.5" /> ช่างภาพ</span>;
+      case "leave":
+        return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-rose-800 bg-rose-200 px-1 py-0.5 rounded"><LogOut className="w-2.5 h-2.5" /> การลา</span>;
       default:
         return null;
     }
@@ -208,6 +216,10 @@ export default function TeamCalendarPage() {
             <span className="text-slate-300">|</span>
             <span className="flex items-center gap-1 font-medium text-amber-800">
               <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> ช่างภาพ
+            </span>
+            <span className="text-slate-300">|</span>
+            <span className="flex items-center gap-1 font-medium text-rose-800">
+              <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" /> การลา
             </span>
           </div>
 
@@ -243,7 +255,7 @@ export default function TeamCalendarPage() {
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="font-semibold text-base md:text-lg px-2">
-              {monthNames[currentMonth]} {currentYear + 543} {/* แสดงปี พ.ศ. */}
+              {monthNames[currentMonth]} {currentYear + 543}
             </span>
             <button onClick={handleNextMonth} className="p-2 hover:bg-white rounded-lg border border-slate-200 transition">
               <ChevronRight className="w-4 h-4" />
@@ -269,14 +281,13 @@ export default function TeamCalendarPage() {
           <div>ส.</div>
         </div>
 
-        {/* Grid View (Full Month) */}
+        {/* Grid View */}
         <div className="grid grid-cols-7 divide-x divide-y divide-slate-100 bg-slate-50/20">
           {daysArray.map((day, index) => {
             if (day === null) {
               return <div key={`empty-${index}`} className="min-h-[100px] md:min-h-[130px] bg-slate-50/40" />;
             }
 
-            // จัดรูปแบบวันที่ให้ตรงกับรูปแบบเก็บข้อมูล YYYY-MM-DD
             const formattedDay = day < 10 ? `0${day}` : `${day}`;
             const formattedMonth = currentMonth + 1 < 10 ? `0${currentMonth + 1}` : `${currentMonth + 1}`;
             const dateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
@@ -296,7 +307,7 @@ export default function TeamCalendarPage() {
                   </span>
                 </div>
 
-                {/* Shift Items (กระชับและไม่รกตา) */}
+                {/* Shift Items */}
                 <div className="space-y-1 overflow-y-auto max-h-[100px]">
                   {dayShifts.map((shift) => (
                     <div
@@ -320,8 +331,9 @@ export default function TeamCalendarPage() {
                         )}
                       </div>
 
+                      {/* แสดงเฉพาะชื่อเท่านั้น */}
                       <div className="font-semibold text-slate-900 truncate leading-tight" title={shift.memberName}>
-                        {shift.memberName.replace(/^(พ.ต.ท.หญิง|ร.ต.อ.|ร.ต.ท.|ด.ต.หญิง|ด.ต.|ร.ต.ต.|จ.ส.ต.|ส.ต.อ.|ส.ต.ท.|ส.ต.ต.)\s*/, "")}
+                        {getFirstNameOnly(shift.memberName)}
                       </div>
                       <div className="text-[10px] text-slate-600 truncate" title={shift.title}>
                         {shift.title}
@@ -396,39 +408,51 @@ export default function TeamCalendarPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">ประเภทภารกิจ</label>
-                <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs font-semibold text-slate-600 block mb-1">ประเภทภารกิจ / การลา</label>
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setShiftType("attend")}
-                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
                       shiftType === "attend"
                         ? "bg-sky-500 text-white border-sky-600 ring-2 ring-sky-300"
                         : "bg-sky-50 text-sky-800 border-sky-200"
                     }`}
                   >
-                    <Handshake className="w-3.5 h-3.5" /> ร่วมงาน (ฟ้า)
+                    <Handshake className="w-3.5 h-3.5" /> ร่วมงาน
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShiftType("photo")}
-                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
                       shiftType === "photo"
                         ? "bg-amber-400 text-amber-950 border-amber-500 ring-2 ring-amber-300"
                         : "bg-amber-50 text-amber-900 border-amber-200"
                     }`}
                   >
-                    <Camera className="w-3.5 h-3.5" /> ช่างภาพ (เหลือง)
+                    <Camera className="w-3.5 h-3.5" /> ช่างภาพ
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShiftType("leave")}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
+                      shiftType === "leave"
+                        ? "bg-rose-500 text-white border-rose-600 ring-2 ring-rose-300"
+                        : "bg-rose-50 text-rose-900 border-rose-200"
+                    }`}
+                  >
+                    <LogOut className="w-3.5 h-3.5" /> การลา
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">รายละเอียดภารกิจ / เวร</label>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">รายละเอียดภารกิจ / สาเหตุการลา</label>
                 <input
                   type="text"
-                  placeholder="เช่น พิธีมอบทุนการศึกษา"
+                  placeholder="เช่น ลาป่วย, ลากิจ, พิธีมอบทุนการศึกษา"
                   value={shiftTitle}
                   onChange={(e) => setShiftTitle(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
