@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,9 +15,13 @@ import {
   LogOut,
   Info,
   Download,
-  Upload,
   BarChart3,
 } from "lucide-react";
+
+// เชื่อมต่อ Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 interface ShiftItem {
   id: string;
@@ -29,30 +34,15 @@ interface ShiftItem {
   type: "attend" | "photo" | "leave";
 }
 
-const INITIAL_MEMBERS = [
-  { id: "1", name: "พ.ต.ท.หญิง ดวงกมล สรไกร" },
-  { id: "2", name: "ร.ต.อ. ปรีชา จูมแพง" },
-  { id: "3", name: "ร.ต.ท. ชัยชนะ ภูอุภัย" },
-  { id: "4", name: "ร.ต.ท. อนุกูล กาเผือก" },
-  { id: "5", name: "ร.ต.ท. ณัฐศ์ธนันท์ โกษาแสง" },
-  { id: "6", name: "ด.ต.หญิง ภัณฑิลา เสนาศรี" },
-  { id: "7", name: "ด.ต. เทพสุพรรณ ไชยรบ" },
-  { id: "8", name: "ร.ต.ต. อัครา สุวรรณชะลา" },
-  { id: "9", name: "ด.ต. เรวัฒน์ นรสาร" },
-  { id: "10", name: "จ.ส.ต. ทรงชัย แสงนาโก" },
-  { id: "11", name: "ส.ต.อ. ทินกรณ์ หล่าบุตรศรี" },
-  { id: "12", name: "ส.ต.อ. สุริโย กิ่งมาลา" },
-  { id: "13", name: "ส.ต.ท. อภิเชษฐ์ ทันบาล" },
-  { id: "14", name: "ส.ต.ท. ธนพัฒน์ ยืนยง" },
-  { id: "15", name: "ส.ต.ต. บุญตะวัน เรืองธรรม" },
-];
-
-const INITIAL_SHIFTS: ShiftItem[] = [];
+interface MemberItem {
+  id: string;
+  name: string;
+}
 
 export default function TeamCalendarPage() {
-  const [members, setMembers] = useState(INITIAL_MEMBERS);
+  const [members, setMembers] = useState<MemberItem[]>([]);
   const [selectedMember, setSelectedMember] = useState<string>("all");
-  const [shifts, setShifts] = useState<ShiftItem[]>(INITIAL_SHIFTS);
+  const [shifts, setShifts] = useState<ShiftItem[]>([]);
 
   const [currentYear, setCurrentYear] = useState(2026);
   const [currentMonth, setCurrentMonth] = useState(9); // 0-indexed (9 = ตุลาคม)
@@ -73,12 +63,48 @@ export default function TeamCalendarPage() {
 
   const [showStats, setShowStats] = useState(true);
 
-  const [shiftMemberId, setShiftMemberId] = useState(members[0]?.id || "1");
+  const [shiftMemberId, setShiftMemberId] = useState("");
   const [shiftDate, setShiftDate] = useState("2026-10-20");
   const [shiftStartTime, setShiftStartTime] = useState("08:30");
   const [shiftEndTime, setShiftEndTime] = useState("16:30");
   const [shiftTitle, setShiftTitle] = useState("");
   const [shiftType, setShiftType] = useState<"attend" | "photo" | "leave">("attend");
+
+  // ดึงข้อมูลจาก Supabase เมื่อโหลดหน้าเว็บ
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const { data: membersData, error: memberErr } = await supabase.from("members").select("*");
+      if (memberErr) throw memberErr;
+      if (membersData) {
+        setMembers(membersData);
+        if (membersData.length > 0 && !shiftMemberId) {
+          setShiftMemberId(membersData[0].id);
+        }
+      }
+
+      const { data: shiftsData, error: shiftErr } = await supabase.from("shifts").select("*");
+      if (shiftErr) throw shiftErr;
+      if (shiftsData) {
+        const formattedShifts: ShiftItem[] = shiftsData.map((s: any) => ({
+          id: s.id,
+          memberId: s.member_id,
+          memberName: s.member_name,
+          date: s.date,
+          startTime: s.start_time,
+          endTime: s.end_time,
+          title: s.title,
+          type: s.type,
+        }));
+        setShifts(formattedShifts);
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    }
+  };
 
   const getDaysInMonth = (year: number, month: number) => {
     const date = new Date(year, month, 1);
@@ -116,44 +142,101 @@ export default function TeamCalendarPage() {
     }
   };
 
-  const handleAddMember = (e: React.FormEvent) => {
+  const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemberName.trim()) return;
-    setMembers([...members, { id: Date.now().toString(), name: newMemberName.trim() }]);
+
+    const newId = Date.now().toString();
+    const newMember = { id: newId, name: newMemberName.trim() };
+
+    const { error } = await supabase.from("members").insert([newMember]);
+    if (error) {
+      alert("เกิดข้อผิดพลาดในการเพิ่มกำลังพล");
+      return;
+    }
+
+    setMembers([...members, newMember]);
     setNewMemberName("");
   };
 
-  const handleDeleteMember = (id: string) => {
+  const handleDeleteMember = async (id: string) => {
+    const { error } = await supabase.from("members").delete().eq("id", id);
+    if (error) {
+      alert("เกิดข้อผิดพลาดในการลบกำลังพล");
+      return;
+    }
+
+    // ลบกะงานที่เกี่ยวข้องออกด้วย
+    await supabase.from("shifts").delete().eq("member_id", id);
+
     setMembers(members.filter((m) => m.id !== id));
     setShifts(shifts.filter((s) => s.memberId !== id));
     if (selectedMember === id) setSelectedMember("all");
   };
 
-  const handleAddShift = (e: React.FormEvent) => {
+  const handleAddShift = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!shiftTitle.trim()) return;
     const member = members.find((m) => m.id === shiftMemberId);
     if (!member) return;
 
-    const newShift: ShiftItem = {
-      id: Date.now().toString(),
-      memberId: member.id,
-      memberName: member.name,
+    const newId = Date.now().toString();
+    const newShiftDb = {
+      id: newId,
+      member_id: member.id,
+      member_name: member.name,
       date: shiftDate,
-      startTime: shiftStartTime,
-      endTime: shiftEndTime,
+      start_time: shiftStartTime,
+      end_time: shiftEndTime,
       title: shiftTitle.trim(),
       type: shiftType,
     };
 
-    setShifts([...shifts, newShift]);
+    const { error } = await supabase.from("shifts").insert([newShiftDb]);
+    if (error) {
+      alert("เกิดข้อผิดพลาดในการบันทึกตารางงาน");
+      return;
+    }
+
+    setShifts([
+      ...shifts,
+      {
+        id: newId,
+        memberId: member.id,
+        memberName: member.name,
+        date: shiftDate,
+        startTime: shiftStartTime,
+        endTime: shiftEndTime,
+        title: shiftTitle.trim(),
+        type: shiftType,
+      },
+    ]);
+
     setShiftTitle("");
     setIsShiftModalOpen(false);
   };
 
-  const handleDeleteShift = (shiftId: string) => {
-    setShifts(shifts.filter((s) => s.id !== shiftId));
-    setActiveGroupDetail(null);
+  const handleDeleteShift = async (shiftId: string) => {
+    const { error } = await supabase.from("shifts").delete().eq("id", shiftId);
+    if (error) {
+      alert("เกิดข้อผิดพลาดในการลบภารกิจ");
+      return;
+    }
+
+    const updatedShifts = shifts.filter((s) => s.id !== shiftId);
+    setShifts(updatedShifts);
+
+    if (activeGroupDetail) {
+      const remainingItems = activeGroupDetail.items.filter((item) => item.id !== shiftId);
+      if (remainingItems.length === 0) {
+        setActiveGroupDetail(null);
+      } else {
+        setActiveGroupDetail({
+          ...activeGroupDetail,
+          items: remainingItems,
+        });
+      }
+    }
   };
 
   const formatThaiTime = (timeStr: string) => {
@@ -196,61 +279,6 @@ export default function TeamCalendarPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const text = evt.target?.result as string;
-      if (!text) return;
-
-      const lines = text.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
-      if (lines.length <= 1) {
-        alert("ไม่พบข้อมูลในไฟล์ CSV");
-        return;
-      }
-
-      const importedShifts: ShiftItem[] = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(",").map((col) => col.replace(/^"(.*)"$/, "$1").trim());
-        if (cols.length < 5) continue;
-
-        const [name, date, startTime, endTime, typeStr, titleStr] = cols;
-
-        let member = members.find((m) => m.name.includes(name) || name.includes(m.name));
-        let memberId = member ? member.id : "1";
-        let memberName = member ? member.name : name;
-
-        let type: "attend" | "photo" | "leave" = "attend";
-        if (typeStr === "ช่างภาพ") type = "photo";
-        else if (typeStr === "การลา") type = "leave";
-
-        importedShifts.push({
-          id: `${Date.now()}_${i}`,
-          memberId,
-          memberName,
-          date,
-          startTime: startTime || "08:30",
-          endTime: endTime || "16:30",
-          title: titleStr || typeStr || "ปฏิบัติภารกิจ",
-          type,
-        });
-      }
-
-      if (importedShifts.length > 0) {
-        setShifts((prev) => [...prev, ...importedShifts]);
-        alert(`นำเข้าข้อมูลสำเร็จจำนวน ${importedShifts.length} รายการ`);
-      } else {
-        alert("ไม่สามารถอ่านรูปแบบข้อมูลในไฟล์ได้ กรุณาตรวจสอบโครงสร้างคอลัมน์");
-      }
-    };
-
-    reader.readAsText(file, "UTF-8");
-    e.target.value = "";
   };
 
   const getFirstNameOnly = (fullName: string) => {
@@ -335,7 +363,7 @@ export default function TeamCalendarPage() {
             <CalendarIcon className="w-6 h-6 text-blue-600" />
             ตารางปฏิบัติงานจิตอาสา
           </h1>
-          <p className="text-xs md:text-sm text-slate-500 mt-0.5">ระบบจัดการกะงานและภารกิจจิตอาสา กก.ตชด.๒๓</p>
+          <p className="text-xs md:text-sm text-slate-500 mt-0.5">ระบบจัดการกะงานและภารกิจจิตอาสา กก.ตชด.๒๓ (ออนไลน์)</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -349,16 +377,6 @@ export default function TeamCalendarPage() {
           >
             <BarChart3 className="w-4 h-4" /> สถิติประจำเดือน
           </button>
-
-          <label className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition cursor-pointer">
-            <Upload className="w-4 h-4" /> นำเข้า Excel/CSV
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleImportCSV}
-              className="hidden"
-            />
-          </label>
 
           <button
             onClick={handleExportCSV}
