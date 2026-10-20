@@ -14,6 +14,7 @@ import {
   LogOut,
   Info,
   Download,
+  Upload,
   BarChart3,
 } from "lucide-react";
 
@@ -25,7 +26,7 @@ interface ShiftItem {
   startTime: string;
   endTime: string;
   title: string;
-  type: "attend" | "photo" | "general" | "leave";
+  type: "attend" | "photo" | "leave";
 }
 
 const INITIAL_MEMBERS = [
@@ -60,7 +61,7 @@ export default function TeamCalendarPage() {
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
-  
+
   const [activeGroupDetail, setActiveGroupDetail] = useState<{
     date: string;
     title: string;
@@ -77,7 +78,7 @@ export default function TeamCalendarPage() {
   const [shiftStartTime, setShiftStartTime] = useState("08:30");
   const [shiftEndTime, setShiftEndTime] = useState("16:30");
   const [shiftTitle, setShiftTitle] = useState("");
-  const [shiftType, setShiftType] = useState<"attend" | "photo" | "general" | "leave">("attend");
+  const [shiftType, setShiftType] = useState<"attend" | "photo" | "leave">("attend");
 
   const getDaysInMonth = (year: number, month: number) => {
     const date = new Date(year, month, 1);
@@ -155,23 +156,32 @@ export default function TeamCalendarPage() {
     setActiveGroupDetail(null);
   };
 
+  const formatThaiTime = (timeStr: string) => {
+    if (!timeStr) return "";
+    const cleanTime = timeStr.replace(/\s*น\.?$/i, "").trim();
+    const [hours, minutes] = cleanTime.split(/[:.]/);
+    if (!hours) return timeStr;
+    const formattedHours = hours.padStart(2, "0");
+    const formattedMinutes = (minutes || "00").padStart(2, "0");
+    return `${formattedHours}.${formattedMinutes} น.`;
+  };
+
   const handleExportCSV = () => {
     if (shifts.length === 0) {
-      alert("ไม่มีข้อมูลตารางงานสำหรับส่งออก");
+      alert("ไม่มีข้อมูลสำหรับส่งออก");
       return;
     }
 
-    let csvContent = "\uFEFFID,ชื่อ-นามสกุล,วันที่,เวลาเริ่ม,เวลาสิ้นสุด,ประเภทภารกิจ,รายละเอียด\n";
+    let csvContent = "\uFEFFชื่อ-นามสกุล,วันที่,เวลาเริ่ม,เวลาสิ้นสุด,ประเภทภารกิจ,รายละเอียด\n";
 
     shifts.forEach((s) => {
       const typeLabel =
-        s.type === "attend" ? "ร่วมงาน" : s.type === "photo" ? "ช่างภาพ" : s.type === "leave" ? "การลา" : "ทั่วไป";
+        s.type === "attend" ? "ร่วมงาน" : s.type === "photo" ? "ช่างภาพ" : "การลา";
       const row = [
-        s.id,
         `"${s.memberName}"`,
         s.date,
-        s.startTime,
-        s.endTime,
+        `"${formatThaiTime(s.startTime)}"`,
+        `"${formatThaiTime(s.endTime)}"`,
         typeLabel,
         `"${s.title}"`,
       ].join(",");
@@ -188,6 +198,61 @@ export default function TeamCalendarPage() {
     document.body.removeChild(link);
   };
 
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
+      if (lines.length <= 1) {
+        alert("ไม่พบข้อมูลในไฟล์ CSV");
+        return;
+      }
+
+      const importedShifts: ShiftItem[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(",").map((col) => col.replace(/^"(.*)"$/, "$1").trim());
+        if (cols.length < 5) continue;
+
+        const [name, date, startTime, endTime, typeStr, titleStr] = cols;
+
+        let member = members.find((m) => m.name.includes(name) || name.includes(m.name));
+        let memberId = member ? member.id : "1";
+        let memberName = member ? member.name : name;
+
+        let type: "attend" | "photo" | "leave" = "attend";
+        if (typeStr === "ช่างภาพ") type = "photo";
+        else if (typeStr === "การลา") type = "leave";
+
+        importedShifts.push({
+          id: `${Date.now()}_${i}`,
+          memberId,
+          memberName,
+          date,
+          startTime: startTime || "08:30",
+          endTime: endTime || "16:30",
+          title: titleStr || typeStr || "ปฏิบัติภารกิจ",
+          type,
+        });
+      }
+
+      if (importedShifts.length > 0) {
+        setShifts((prev) => [...prev, ...importedShifts]);
+        alert(`นำเข้าข้อมูลสำเร็จจำนวน ${importedShifts.length} รายการ`);
+      } else {
+        alert("ไม่สามารถอ่านรูปแบบข้อมูลในไฟล์ได้ กรุณาตรวจสอบโครงสร้างคอลัมน์");
+      }
+    };
+
+    reader.readAsText(file, "UTF-8");
+    e.target.value = "";
+  };
+
   const getFirstNameOnly = (fullName: string) => {
     if (!fullName) return "";
     const nameWithoutRank = fullName
@@ -198,16 +263,6 @@ export default function TeamCalendarPage() {
       .trim();
     const parts = nameWithoutRank.split(/\s+/);
     return parts[0] || fullName;
-  };
-
-  // ฟังก์ชันจัดฟอร์แมตเวลาให้เป็นระบบ 24 ชั่วโมง (HH:mm)
-  const formatTime24 = (timeStr: string) => {
-    if (!timeStr) return "";
-    const [hours, minutes] = timeStr.split(":");
-    if (!hours || !minutes) return timeStr;
-    const formattedHours = hours.padStart(2, "0");
-    const formattedMinutes = minutes.padStart(2, "0");
-    return `${formattedHours}:${formattedMinutes}`;
   };
 
   const currentMonthPrefix = `${currentYear}-${(currentMonth + 1).toString().padStart(2, "0")}`;
@@ -294,6 +349,16 @@ export default function TeamCalendarPage() {
           >
             <BarChart3 className="w-4 h-4" /> สถิติประจำเดือน
           </button>
+
+          <label className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition cursor-pointer">
+            <Upload className="w-4 h-4" /> นำเข้า Excel/CSV
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleImportCSV}
+              className="hidden"
+            />
+          </label>
 
           <button
             onClick={handleExportCSV}
@@ -418,7 +483,7 @@ export default function TeamCalendarPage() {
                         <div className="flex items-center justify-between gap-1 mb-0.5">
                           {getTaskBadge(firstItem.type)}
                           <span className="text-[9px] text-slate-500 font-medium">
-                            {formatTime24(firstItem.startTime)} น.
+                            {formatThaiTime(firstItem.startTime)}
                           </span>
                         </div>
 
@@ -495,7 +560,7 @@ export default function TeamCalendarPage() {
         </section>
       )}
 
-      {/* Modal ป๊อบอัพแสดงรายละเอียดภารกิจแบบ 24 ชม. */}
+      {/* Modal ป๊อบอัพรายละเอียดภารกิจ */}
       {activeGroupDetail && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100">
@@ -520,9 +585,9 @@ export default function TeamCalendarPage() {
                   <span className="font-medium text-slate-700">{activeGroupDetail.date}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400 block font-medium">เวลา (24 ชม.)</span>
+                  <span className="text-xs text-slate-400 block font-medium">เวลาปฏิบัติงาน</span>
                   <span className="font-medium text-slate-700">
-                    {formatTime24(activeGroupDetail.startTime)} - {formatTime24(activeGroupDetail.endTime)} น.
+                    {formatThaiTime(activeGroupDetail.startTime)} - {formatThaiTime(activeGroupDetail.endTime)}
                   </span>
                 </div>
               </div>
@@ -560,7 +625,7 @@ export default function TeamCalendarPage() {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Plus className="w-5 h-5 text-blue-600" /> ลงตารางเวร / ภารกิจ
+                <Plus className="w-5 h-5 text-blue-600" /> ลงตารางงาน / ภารกิจ
               </h2>
               <button onClick={() => setIsShiftModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
@@ -595,7 +660,7 @@ export default function TeamCalendarPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาเริ่ม (24 ชม.)</label>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาเริ่ม</label>
                   <input
                     type="time"
                     value={shiftStartTime}
@@ -604,7 +669,7 @@ export default function TeamCalendarPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาสิ้นสุด (24 ชม.)</label>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาสิ้นสุด</label>
                   <input
                     type="time"
                     value={shiftEndTime}
