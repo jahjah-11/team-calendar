@@ -92,7 +92,7 @@ export default function TeamCalendarPage() {
   const [newMemberName, setNewMemberName] = useState("");
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [activeShiftDetail, setActiveShiftDetail] = useState<ShiftItem | null>(null);
-  const [showStats, setShowStats] = useState(true); // เปิดแสดงสถิติไว้เป็นค่าเริ่มต้น
+  const [showStats, setShowStats] = useState(true);
 
   const [shiftMemberId, setShiftMemberId] = useState(members[0]?.id || "1");
   const [shiftDate, setShiftDate] = useState("2026-10-20");
@@ -488,7 +488,7 @@ export default function TeamCalendarPage() {
         </div>
       </main>
 
-      {/* Modal รายละเอียดภารกิจ */}
+      {/* Modal ป๊อบอัพรายละเอียดภารกิจเมื่อกดที่ตัวงาน */}
       {activeShiftDetail && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100">
