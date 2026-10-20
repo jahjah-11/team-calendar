@@ -18,10 +18,12 @@ import {
   BarChart3,
 } from "lucide-react";
 
-// เชื่อมต่อ Supabase
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-url.supabase.co";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// ฟังก์ชันสร้าง Supabase client แบบปลอดภัย
+const getSupabase = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-url.supabase.co";
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
+  return createClient(supabaseUrl, supabaseAnonKey);
+};
 
 interface ShiftItem {
   id: string;
@@ -77,6 +79,7 @@ export default function TeamCalendarPage() {
 
   const fetchData = async () => {
     try {
+      const supabase = getSupabase();
       const { data: membersData, error: memberErr } = await supabase.from("members").select("*");
       if (memberErr) throw memberErr;
       if (membersData) {
@@ -149,6 +152,7 @@ export default function TeamCalendarPage() {
     const newId = Date.now().toString();
     const newMember = { id: newId, name: newMemberName.trim() };
 
+    const supabase = getSupabase();
     const { error } = await supabase.from("members").insert([newMember]);
     if (error) {
       alert("เกิดข้อผิดพลาดในการเพิ่มกำลังพล");
@@ -160,13 +164,13 @@ export default function TeamCalendarPage() {
   };
 
   const handleDeleteMember = async (id: string) => {
+    const supabase = getSupabase();
     const { error } = await supabase.from("members").delete().eq("id", id);
     if (error) {
       alert("เกิดข้อผิดพลาดในการลบกำลังพล");
       return;
     }
 
-    // ลบกะงานที่เกี่ยวข้องออกด้วย
     await supabase.from("shifts").delete().eq("member_id", id);
 
     setMembers(members.filter((m) => m.id !== id));
@@ -192,6 +196,7 @@ export default function TeamCalendarPage() {
       type: shiftType,
     };
 
+    const supabase = getSupabase();
     const { error } = await supabase.from("shifts").insert([newShiftDb]);
     if (error) {
       alert("เกิดข้อผิดพลาดในการบันทึกตารางงาน");
@@ -217,6 +222,7 @@ export default function TeamCalendarPage() {
   };
 
   const handleDeleteShift = async (shiftId: string) => {
+    const supabase = getSupabase();
     const { error } = await supabase.from("shifts").delete().eq("id", shiftId);
     if (error) {
       alert("เกิดข้อผิดพลาดในการลบภารกิจ");
