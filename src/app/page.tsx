@@ -61,7 +61,6 @@ export default function TeamCalendarPage() {
   const [newMemberName, setNewMemberName] = useState("");
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   
-  // เก็บอาเรย์ของคนที่อยู่ในกลุ่มภารกิจนั้นๆ เมื่อกดดูรายละเอียด
   const [activeGroupDetail, setActiveGroupDetail] = useState<{
     date: string;
     title: string;
@@ -201,7 +200,16 @@ export default function TeamCalendarPage() {
     return parts[0] || fullName;
   };
 
-  // คำนวณสถิติประจำเดือน
+  // ฟังก์ชันจัดฟอร์แมตเวลาให้เป็นระบบ 24 ชั่วโมง (HH:mm)
+  const formatTime24 = (timeStr: string) => {
+    if (!timeStr) return "";
+    const [hours, minutes] = timeStr.split(":");
+    if (!hours || !minutes) return timeStr;
+    const formattedHours = hours.padStart(2, "0");
+    const formattedMinutes = minutes.padStart(2, "0");
+    return `${formattedHours}:${formattedMinutes}`;
+  };
+
   const currentMonthPrefix = `${currentYear}-${(currentMonth + 1).toString().padStart(2, "0")}`;
   const monthShifts = shifts.filter((s) => s.date.startsWith(currentMonthPrefix));
 
@@ -363,7 +371,6 @@ export default function TeamCalendarPage() {
 
             const dayShifts = filteredShifts.filter((s) => s.date === dateStr);
 
-            // จัดกลุ่มภารกิจที่ชื่อเดียวกันและประเภทเดียวกันให้อยู่ในการ์ดใบเดียว
             const groupedShiftsMap: { [key: string]: ShiftItem[] } = {};
             dayShifts.forEach((s) => {
               const groupKey = `${s.title}_${s.type}_${s.startTime}`;
@@ -410,11 +417,9 @@ export default function TeamCalendarPage() {
                       >
                         <div className="flex items-center justify-between gap-1 mb-0.5">
                           {getTaskBadge(firstItem.type)}
-                          {group.length > 1 && (
-                            <span className="text-[9px] bg-slate-900 text-white px-1 rounded-full font-bold">
-                              {group.length} นาย
-                            </span>
-                          )}
+                          <span className="text-[9px] text-slate-500 font-medium">
+                            {formatTime24(firstItem.startTime)} น.
+                          </span>
                         </div>
 
                         <div className="font-semibold text-slate-900 truncate leading-tight">
@@ -490,7 +495,7 @@ export default function TeamCalendarPage() {
         </section>
       )}
 
-      {/* Modal ป๊อบอัพแสดงรายละเอียดภารกิจแบบกลุ่ม */}
+      {/* Modal ป๊อบอัพแสดงรายละเอียดภารกิจแบบ 24 ชม. */}
       {activeGroupDetail && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100">
@@ -515,8 +520,10 @@ export default function TeamCalendarPage() {
                   <span className="font-medium text-slate-700">{activeGroupDetail.date}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400 block font-medium">เวลา</span>
-                  <span className="font-medium text-slate-700">{activeGroupDetail.startTime} - {activeGroupDetail.endTime} น.</span>
+                  <span className="text-xs text-slate-400 block font-medium">เวลา (24 ชม.)</span>
+                  <span className="font-medium text-slate-700">
+                    {formatTime24(activeGroupDetail.startTime)} - {formatTime24(activeGroupDetail.endTime)} น.
+                  </span>
                 </div>
               </div>
 
@@ -588,7 +595,7 @@ export default function TeamCalendarPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาเริ่ม</label>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาเริ่ม (24 ชม.)</label>
                   <input
                     type="time"
                     value={shiftStartTime}
@@ -597,7 +604,7 @@ export default function TeamCalendarPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาสิ้นสุด</label>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาสิ้นสุด (24 ชม.)</label>
                   <input
                     type="time"
                     value={shiftEndTime}
