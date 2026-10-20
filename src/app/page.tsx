@@ -46,38 +46,8 @@ const INITIAL_MEMBERS = [
   { id: "15", name: "ส.ต.ต. บุญตะวัน เรืองธรรม" },
 ];
 
-const INITIAL_SHIFTS: ShiftItem[] = [
-  {
-    id: "101",
-    memberId: "1",
-    memberName: "พ.ต.ท.หญิง ดวงกมล สรไกร",
-    date: "2026-10-20",
-    startTime: "08:30",
-    endTime: "12:00",
-    title: "พิธีเปิดโครงการอาสาสมัคร",
-    type: "attend",
-  },
-  {
-    id: "102",
-    memberId: "7",
-    memberName: "ด.ต. เทพสุพรรณ ไชยรบ",
-    date: "2026-10-20",
-    startTime: "08:30",
-    endTime: "16:30",
-    title: "ถ่ายภาพกิจกรรมพิธีเปิด",
-    type: "photo",
-  },
-  {
-    id: "103",
-    memberId: "11",
-    memberName: "ส.ต.อ. ทินกรณ์ หล่าบุตรศรี",
-    date: "2026-10-21",
-    startTime: "08:00",
-    endTime: "16:00",
-    title: "ลาป่วย",
-    type: "leave",
-  },
-];
+// ลบข้อมูลภารกิจตัวอย่างออกแล้ว (เริ่มต้นเป็นอาเรย์ว่าง)
+const INITIAL_SHIFTS: ShiftItem[] = [];
 
 export default function TeamCalendarPage() {
   const [members, setMembers] = useState(INITIAL_MEMBERS);
@@ -297,7 +267,6 @@ export default function TeamCalendarPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* ปุ่มสลับเปิด/ปิดสถิติ */}
           <button
             onClick={() => setShowStats(!showStats)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition ${
@@ -340,67 +309,8 @@ export default function TeamCalendarPage() {
         </div>
       </header>
 
-      {/* สรุปสถิติประจำเดือน */}
-      {showStats && (
-        <section className="max-w-7xl mx-auto mb-6 space-y-4">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-            <h2 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-blue-600" />
-              ภาพรวมสถิติเดือน {monthNames[currentMonth]} {currentYear + 543}
-            </h2>
-
-            {/* การ์ดสรุป 4 ช่อง */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-sky-50 border border-sky-100 p-3.5 rounded-xl">
-                <span className="text-xs text-sky-700 font-medium block">ร่วมงานทั้งหมด</span>
-                <span className="text-2xl font-bold text-sky-900">{totalAttend} <span className="text-xs font-normal">ครั้ง</span></span>
-              </div>
-              <div className="bg-amber-50 border border-amber-100 p-3.5 rounded-xl">
-                <span className="text-xs text-amber-800 font-medium block">ภารกิจช่างภาพ</span>
-                <span className="text-2xl font-bold text-amber-950">{totalPhoto} <span className="text-xs font-normal">ครั้ง</span></span>
-              </div>
-              <div className="bg-rose-50 border border-rose-100 p-3.5 rounded-xl">
-                <span className="text-xs text-rose-800 font-medium block">สถิติการลา</span>
-                <span className="text-2xl font-bold text-rose-950">{totalLeave} <span className="text-xs font-normal">ครั้ง</span></span>
-              </div>
-              <div className="bg-slate-100 border border-slate-200 p-3.5 rounded-xl">
-                <span className="text-xs text-slate-600 font-medium block">รวมภารกิจทั้งหมด</span>
-                <span className="text-2xl font-bold text-slate-900">{totalAllShifts} <span className="text-xs font-normal">รายการ</span></span>
-              </div>
-            </div>
-
-            {/* ตารางสรุปรายบุคคล */}
-            <div className="mt-5 overflow-x-auto">
-              <h3 className="text-xs font-semibold text-slate-500 mb-2">ตารางสรุปการปฏิบัติงานรายบุคคล</h3>
-              <table className="w-full text-xs text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-600 border-y border-slate-200">
-                    <th className="p-2.5 font-semibold">ชื่อ-นามสกุล</th>
-                    <th className="p-2.5 text-center font-semibold text-sky-700">ร่วมงาน</th>
-                    <th className="p-2.5 text-center font-semibold text-amber-800">ช่างภาพ</th>
-                    <th className="p-2.5 text-center font-semibold text-rose-800">การลา</th>
-                    <th className="p-2.5 text-center font-semibold text-slate-900">รวม (ครั้ง)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {memberStats.map((ms) => (
-                    <tr key={ms.id} className="hover:bg-slate-50/50 transition">
-                      <td className="p-2.5 font-medium text-slate-800">{ms.name}</td>
-                      <td className="p-2.5 text-center text-slate-700">{ms.attendCount || "-"}</td>
-                      <td className="p-2.5 text-center text-slate-700">{ms.photoCount || "-"}</td>
-                      <td className="p-2.5 text-center font-medium text-rose-600">{ms.leaveCount || "-"}</td>
-                      <td className="p-2.5 text-center font-bold text-slate-900">{ms.totalCount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Calendar Main */}
-      <main className="max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      {/* Calendar Main (ส่วนตารางปฏิทินแสดงด้านบน) */}
+      <main className="max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
             <button onClick={handlePrevMonth} className="p-2 hover:bg-white rounded-lg border border-slate-200 transition">
@@ -487,6 +397,65 @@ export default function TeamCalendarPage() {
           })}
         </div>
       </main>
+
+      {/* สรุปสถิติประจำเดือน (แสดงไว้ด้านล่างของปฏิทิน) */}
+      {showStats && (
+        <section className="max-w-7xl mx-auto space-y-4">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+            <h2 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-blue-600" />
+              สรุปสถิติประจำเดือน {monthNames[currentMonth]} {currentYear + 543}
+            </h2>
+
+            {/* การ์ดสรุป 4 ช่อง */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-sky-50 border border-sky-100 p-3.5 rounded-xl">
+                <span className="text-xs text-sky-700 font-medium block">ร่วมงานทั้งหมด</span>
+                <span className="text-2xl font-bold text-sky-900">{totalAttend} <span className="text-xs font-normal">ครั้ง</span></span>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 p-3.5 rounded-xl">
+                <span className="text-xs text-amber-800 font-medium block">ภารกิจช่างภาพ</span>
+                <span className="text-2xl font-bold text-amber-950">{totalPhoto} <span className="text-xs font-normal">ครั้ง</span></span>
+              </div>
+              <div className="bg-rose-50 border border-rose-100 p-3.5 rounded-xl">
+                <span className="text-xs text-rose-800 font-medium block">สถิติการลา</span>
+                <span className="text-2xl font-bold text-rose-950">{totalLeave} <span className="text-xs font-normal">ครั้ง</span></span>
+              </div>
+              <div className="bg-slate-100 border border-slate-200 p-3.5 rounded-xl">
+                <span className="text-xs text-slate-600 font-medium block">รวมภารกิจทั้งหมด</span>
+                <span className="text-2xl font-bold text-slate-900">{totalAllShifts} <span className="text-xs font-normal">รายการ</span></span>
+              </div>
+            </div>
+
+            {/* ตารางสรุปรายบุคคล */}
+            <div className="mt-5 overflow-x-auto">
+              <h3 className="text-xs font-semibold text-slate-500 mb-2">ตารางสรุปการปฏิบัติงานรายบุคคล</h3>
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 border-y border-slate-200">
+                    <th className="p-2.5 font-semibold">ชื่อ-นามสกุล</th>
+                    <th className="p-2.5 text-center font-semibold text-sky-700">ร่วมงาน</th>
+                    <th className="p-2.5 text-center font-semibold text-amber-800">ช่างภาพ</th>
+                    <th className="p-2.5 text-center font-semibold text-rose-800">การลา</th>
+                    <th className="p-2.5 text-center font-semibold text-slate-900">รวม (ครั้ง)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {memberStats.map((ms) => (
+                    <tr key={ms.id} className="hover:bg-slate-50/50 transition">
+                      <td className="p-2.5 font-medium text-slate-800">{ms.name}</td>
+                      <td className="p-2.5 text-center text-slate-700">{ms.attendCount || "-"}</td>
+                      <td className="p-2.5 text-center text-slate-700">{ms.photoCount || "-"}</td>
+                      <td className="p-2.5 text-center font-medium text-rose-600">{ms.leaveCount || "-"}</td>
+                      <td className="p-2.5 text-center font-bold text-slate-900">{ms.totalCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Modal ป๊อบอัพรายละเอียดภารกิจเมื่อกดที่ตัวงาน */}
       {activeShiftDetail && (
