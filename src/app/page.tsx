@@ -18,8 +18,8 @@ import {
   BarChart3,
 } from "lucide-react";
 
-// === ใส่ค่าเชื่อมต่อ Supabase ของคุณตรงนี้โดยตรง (แก้ปัญหา Vercel Environment Variables ไม่โหลด) ===
-const SUPABASE_URL = " ijtahcuddkpkpwqvcnsy";
+// === ตั้งค่าการเชื่อมต่อ Supabase ของ กก.ตชด.๒๓ ===
+const SUPABASE_URL = "https://ijtahcuddkpkpwqvcnsy.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqdGFoY3VkZGtwa3B3cXZjbnN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0ODI3NDIsImV4cCI6MjEwODA1ODc0Mn0.iGuwk9kJVpzE0VIVUondEjVzJg1EIsVC62Es-3awvtk";
 
 const getSupabase = () => {
