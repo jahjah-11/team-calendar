@@ -255,7 +255,7 @@ export default function TeamCalendarPage() {
     const supabase = getSupabase();
     const { error } = await supabase
       .from("shifts")
-      update(updatedDbData)
+      .update(updatedDbData)
       .eq("id", editingShift.id);
 
     if (error) {
