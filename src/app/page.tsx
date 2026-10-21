@@ -17,6 +17,7 @@ import {
   Download,
   BarChart3,
   ListOrdered,
+  Edit3,
 } from "lucide-react";
 
 // === ตั้งค่าการเชื่อมต่อ Supabase ของ กก.ตชด.๒๓ ===
@@ -55,6 +56,10 @@ export default function TeamCalendarPage() {
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+
+  // States สำหรับแก้ไขภารกิจ
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingShift, setEditingShift] = useState<ShiftItem | null>(null);
 
   const [activeGroupDetail, setActiveGroupDetail] = useState<{
     date: string;
@@ -221,6 +226,54 @@ export default function TeamCalendarPage() {
 
     setShiftTitle("");
     setIsShiftModalOpen(false);
+  };
+
+  // เปิด Modal แก้ไขภารกิจ
+  const handleOpenEdit = (shift: ShiftItem) => {
+    setEditingShift(shift);
+    setIsEditModalOpen(true);
+  };
+
+  // บันทึกการแก้ไขภารกิจ
+  const handleUpdateShift = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingShift) return;
+
+    const member = members.find((m) => m.id === editingShift.memberId);
+    const memberName = member ? member.name : editingShift.memberName;
+
+    const updatedDbData = {
+      member_id: editingShift.memberId,
+      member_name: memberName,
+      date: editingShift.date,
+      start_time: editingShift.startTime,
+      end_time: editingShift.endTime,
+      title: editingShift.title.trim(),
+      type: editingShift.type,
+    };
+
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from("shifts")
+      update(updatedDbData)
+      .eq("id", editingShift.id);
+
+    if (error) {
+      alert("เกิดข้อผิดพลาดในการแก้ไขภารกิจ");
+      return;
+    }
+
+    setShifts(
+      shifts.map((s) =>
+        s.id === editingShift.id
+          ? { ...editingShift, memberName }
+          : s
+      )
+    );
+
+    setIsEditModalOpen(false);
+    setEditingShift(null);
+    setActiveGroupDetail(null);
   };
 
   const handleDeleteShift = async (shiftId: string) => {
@@ -553,7 +606,7 @@ export default function TeamCalendarPage() {
         </div>
       </main>
 
-      {/* ส่วนแสดงรายการภารกิจรายวัน เรียงตามลำดับวันที่ */}
+      {/* ส่วนแสดงรายการภารกิจรายวัน เรียงตามลำดับวันที่ พร้อมปุ่มแก้ไข/ลบ */}
       <section className="max-w-7xl mx-auto mb-6">
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
           <h2 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -572,14 +625,28 @@ export default function TeamCalendarPage() {
                   </div>
                   <div className="space-y-2 pl-2">
                     {items.map((item) => (
-                      <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 bg-slate-50/70 hover:bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs transition">
+                      <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/70 hover:bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs transition">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-slate-900">{item.memberName}</span>
                           {getTaskBadge(item.type)}
                           <span className="text-slate-700 font-medium">- {item.title}</span>
+                          <span className="text-slate-400 text-[11px]">({formatThaiTime(item.startTime)} - {formatThaiTime(item.endTime)})</span>
                         </div>
-                        <div className="text-slate-500 text-[11px] shrink-0">
-                          เวลา {formatThaiTime(item.startTime)} - {formatThaiTime(item.endTime)}
+                        <div className="flex items-center gap-1 shrink-0 self-end sm:self-center">
+                          <button
+                            onClick={() => handleOpenEdit(item)}
+                            className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg text-xs font-medium transition border border-amber-200"
+                            title="แก้ไขภารกิจ"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" /> แก้ไข
+                          </button>
+                          <button
+                            onClick={() => handleDeleteShift(item.id)}
+                            className="flex items-center gap-1 bg-rose-50 hover:bg-rose-100 text-rose-700 px-2.5 py-1 rounded-lg text-xs font-medium transition border border-rose-200"
+                            title="ลบภารกิจ"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> ลบ
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -691,18 +758,162 @@ export default function TeamCalendarPage() {
                   {activeGroupDetail.items.map((item) => (
                     <div key={item.id} className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100 text-xs">
                       <span className="font-medium text-slate-800">{item.memberName}</span>
-                      <button
-                        onClick={() => handleDeleteShift(item.id)}
-                        className="text-slate-400 hover:text-rose-600 transition p-1"
-                        title="ลบรายชื่อนี้ออก"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setActiveGroupDetail(null);
+                            handleOpenEdit(item);
+                          }}
+                          className="text-amber-600 hover:text-amber-800 transition p-1"
+                          title="แก้ไขภารกิจนี้"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteShift(item.id)}
+                          className="text-slate-400 hover:text-rose-600 transition p-1"
+                          title="ลบรายชื่อนี้ออก"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal แก้ไขภารกิจ */}
+      {isEditModalOpen && editingShift && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-amber-600" /> แก้ไขภารกิจ / การลา
+              </h2>
+              <button onClick={() => setIsEditModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateShift} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">ผู้รับผิดชอบ / กำลังพล</label>
+                <select
+                  value={editingShift.memberId}
+                  onChange={(e) => setEditingShift({ ...editingShift, memberId: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">วันที่ปฏิบัติงาน</label>
+                <input
+                  type="date"
+                  value={editingShift.date}
+                  onChange={(e) => setEditingShift({ ...editingShift, date: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาเริ่ม</label>
+                  <input
+                    type="time"
+                    value={editingShift.startTime}
+                    onChange={(e) => setEditingShift({ ...editingShift, startTime: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาสิ้นสุด</label>
+                  <input
+                    type="time"
+                    value={editingShift.endTime}
+                    onChange={(e) => setEditingShift({ ...editingShift, endTime: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">ประเภทภารกิจ / การลา</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingShift({ ...editingShift, type: "attend" })}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
+                      editingShift.type === "attend"
+                        ? "bg-sky-500 text-white border-sky-600 ring-2 ring-sky-300"
+                        : "bg-sky-50 text-sky-800 border-sky-200"
+                    }`}
+                  >
+                    <Handshake className="w-3.5 h-3.5" /> ร่วมงาน
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditingShift({ ...editingShift, type: "photo" })}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
+                      editingShift.type === "photo"
+                        ? "bg-amber-400 text-amber-950 border-amber-500 ring-2 ring-amber-300"
+                        : "bg-amber-50 text-amber-900 border-amber-200"
+                    }`}
+                  >
+                    <Camera className="w-3.5 h-3.5" /> ช่างภาพ
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditingShift({ ...editingShift, type: "leave" })}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
+                      editingShift.type === "leave"
+                        ? "bg-rose-500 text-white border-rose-600 ring-2 ring-rose-300"
+                        : "bg-rose-50 text-rose-900 border-rose-200"
+                    }`}
+                  >
+                    <LogOut className="w-3.5 h-3.5" /> การลา
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">รายละเอียดภารกิจ / สาเหตุการลา</label>
+                <input
+                  type="text"
+                  value={editingShift.title}
+                  onChange={(e) => setEditingShift({ ...editingShift, title: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-medium transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-medium transition shadow-sm"
+                >
+                  บันทึกการแก้ไข
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
