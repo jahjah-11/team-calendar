@@ -63,7 +63,7 @@ export default function TeamCalendarPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<ShiftItem | null>(null);
 
-  // State สำหรับยุบ/ขยาย รายการภารกิจแต่ละเดือน (เก็บบุคลีย์ เช่น "2026-10": true)
+  // State สำหรับยุบ/ขยาย รายการภารกิจแต่ละเดือน
   const [expandedMonths, setExpandedMonths] = useState<{ [key: string]: boolean }>({});
 
   const [activeGroupDetail, setActiveGroupDetail] = useState<{
@@ -419,8 +419,17 @@ export default function TeamCalendarPage() {
   const filteredShifts =
     selectedMember === "all" ? shifts : shifts.filter((s) => s.memberId === selectedMember);
 
-  // จัดกลุ่มภารกิจแยกตาม "เดือน" (เช่น "2026-10") และภายในเดือนแยกตาม "วันที่"
-  const sortedAllShifts = [...filteredShifts].sort((a, b) => b.date.localeCompare(a.date));
+  // เรียงลำดับข้อมูลภารกิจทั้งหมด:
+  // 1. เรียงตามวันที่ "เก่าไปใหม่" (อดีต -> อนาคต)
+  // 2. ถ้าวันเดียวกัน เรียงตามเวลาเริ่ม "ก่อนไปหลัง"
+  const sortedAllShifts = [...filteredShifts].sort((a, b) => {
+    if (a.date !== b.date) {
+      return a.date.localeCompare(b.date);
+    }
+    return a.startTime.localeCompare(b.startTime);
+  });
+
+  // จัดกลุ่มภารกิจแยกตาม "เดือน" และภายในเดือนแยกตาม "วันที่"
   const shiftsByMonth: { [monthKey: string]: { [dateStr: string]: ShiftItem[] } } = {};
 
   sortedAllShifts.forEach((s) => {
@@ -639,12 +648,12 @@ export default function TeamCalendarPage() {
         </div>
       </main>
 
-      {/* ส่วนแสดงรายการภารกิจ ย่อ/ขยาย เป็นรายเดือน */}
+      {/* ส่วนแสดงรายการภารกิจ ย่อ/ขยาย เป็นรายเดือน (เรียงจากเก่าไปใหม่ และเวลาเริ่มก่อนไปหลัง) */}
       <section className="max-w-7xl mx-auto mb-6">
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
           <h2 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
             <ListOrdered className="w-5 h-5 text-blue-600" />
-            สรุปรายการภารกิจแบ่งตามเดือน
+            สรุปรายการภารกิจแบ่งตามเดือน (เรียงจากเก่าไปใหม่)
           </h2>
 
           {Object.keys(shiftsByMonth).length === 0 ? (
