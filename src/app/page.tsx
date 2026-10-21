@@ -18,6 +18,8 @@ import {
   BarChart3,
   ListOrdered,
   Edit3,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 // === ตั้งค่าการเชื่อมต่อ Supabase ของ กก.ตชด.๒๓ ===
@@ -61,6 +63,9 @@ export default function TeamCalendarPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<ShiftItem | null>(null);
 
+  // State สำหรับยุบ/ขยาย รายการภารกิจแต่ละเดือน (เก็บบุคลีย์ เช่น "2026-10": true)
+  const [expandedMonths, setExpandedMonths] = useState<{ [key: string]: boolean }>({});
+
   const [activeGroupDetail, setActiveGroupDetail] = useState<{
     date: string;
     title: string;
@@ -83,6 +88,15 @@ export default function TeamCalendarPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // เปิดกางเดือนปัจจุบันไว้เป็นค่าเริ่มต้น
+  useEffect(() => {
+    const currentMonthKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, "0")}`;
+    setExpandedMonths((prev) => ({
+      ...prev,
+      [currentMonthKey]: true,
+    }));
+  }, [currentYear, currentMonth]);
 
   const fetchData = async () => {
     try {
@@ -150,6 +164,13 @@ export default function TeamCalendarPage() {
     } else {
       setCurrentMonth(currentMonth + 1);
     }
+  };
+
+  const toggleMonthExpansion = (monthKey: string) => {
+    setExpandedMonths((prev) => ({
+      ...prev,
+      [monthKey]: !prev[monthKey],
+    }));
   };
 
   const handleAddMember = async (e: React.FormEvent) => {
@@ -324,6 +345,13 @@ export default function TeamCalendarPage() {
     return `${parseInt(d)} ${monthName} ${shortYear}`;
   };
 
+  const formatMonthYearLabel = (monthKey: string) => {
+    const [yStr, mStr] = monthKey.split("-");
+    const y = parseInt(yStr);
+    const m = parseInt(mStr) - 1;
+    return `${monthNames[m]} ${y + 543}`;
+  };
+
   const handleExportCSV = () => {
     if (shifts.length === 0) {
       alert("ไม่มีข้อมูลสำหรับส่งออก");
@@ -391,14 +419,19 @@ export default function TeamCalendarPage() {
   const filteredShifts =
     selectedMember === "all" ? shifts : shifts.filter((s) => s.memberId === selectedMember);
 
-  // จัดกลุ่มภารกิจของเดือนนี้ตามวันที่ เรียงจากน้อยไปมาก
-  const sortedMonthShifts = [...monthShifts].sort((a, b) => a.date.localeCompare(b.date));
-  const groupedByDate: { [date: string]: ShiftItem[] } = {};
-  sortedMonthShifts.forEach((s) => {
-    if (!groupedByDate[s.date]) {
-      groupedByDate[s.date] = [];
+  // จัดกลุ่มภารกิจแยกตาม "เดือน" (เช่น "2026-10") และภายในเดือนแยกตาม "วันที่"
+  const sortedAllShifts = [...filteredShifts].sort((a, b) => b.date.localeCompare(a.date));
+  const shiftsByMonth: { [monthKey: string]: { [dateStr: string]: ShiftItem[] } } = {};
+
+  sortedAllShifts.forEach((s) => {
+    const monthKey = s.date.substring(0, 7); // e.g. "2026-10"
+    if (!shiftsByMonth[monthKey]) {
+      shiftsByMonth[monthKey] = {};
     }
-    groupedByDate[s.date].push(s);
+    if (!shiftsByMonth[monthKey][s.date]) {
+      shiftsByMonth[monthKey][s.date] = [];
+    }
+    shiftsByMonth[monthKey][s.date].push(s);
   });
 
   const getTaskStyle = (type: string) => {
@@ -606,53 +639,85 @@ export default function TeamCalendarPage() {
         </div>
       </main>
 
-      {/* ส่วนแสดงรายการภารกิจรายวัน เรียงตามลำดับวันที่ พร้อมปุ่มแก้ไข/ลบ */}
+      {/* ส่วนแสดงรายการภารกิจ ย่อ/ขยาย เป็นรายเดือน */}
       <section className="max-w-7xl mx-auto mb-6">
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
           <h2 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
             <ListOrdered className="w-5 h-5 text-blue-600" />
-            รายการภารกิจประจำเดือน {monthNames[currentMonth]} {currentYear + 543}
+            สรุปรายการภารกิจแบ่งตามเดือน
           </h2>
 
-          {Object.keys(groupedByDate).length === 0 ? (
-            <p className="text-xs text-slate-400 py-4 text-center">ยังไม่มีการลงตารางงานในเดือนนี้</p>
+          {Object.keys(shiftsByMonth).length === 0 ? (
+            <p className="text-xs text-slate-400 py-4 text-center">ยังไม่มีข้อมูลภารกิจในระบบ</p>
           ) : (
-            <div className="space-y-4">
-              {Object.entries(groupedByDate).map(([dateStr, items]) => (
-                <div key={dateStr} className="border-b border-slate-100 pb-3 last:border-none last:pb-0">
-                  <div className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md inline-block mb-2">
-                    {formatThaiDateShort(dateStr)}
-                  </div>
-                  <div className="space-y-2 pl-2">
-                    {items.map((item) => (
-                      <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/70 hover:bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs transition">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-slate-900">{item.memberName}</span>
-                          {getTaskBadge(item.type)}
-                          <span className="text-slate-700 font-medium">- {item.title}</span>
-                          <span className="text-slate-400 text-[11px]">({formatThaiTime(item.startTime)} - {formatThaiTime(item.endTime)})</span>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0 self-end sm:self-center">
-                          <button
-                            onClick={() => handleOpenEdit(item)}
-                            className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg text-xs font-medium transition border border-amber-200"
-                            title="แก้ไขภารกิจ"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" /> แก้ไข
-                          </button>
-                          <button
-                            onClick={() => handleDeleteShift(item.id)}
-                            className="flex items-center gap-1 bg-rose-50 hover:bg-rose-100 text-rose-700 px-2.5 py-1 rounded-lg text-xs font-medium transition border border-rose-200"
-                            title="ลบภารกิจ"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> ลบ
-                          </button>
-                        </div>
+            <div className="space-y-3">
+              {Object.entries(shiftsByMonth).map(([monthKey, daysMap]) => {
+                const isExpanded = !!expandedMonths[monthKey];
+                const totalMonthShifts = Object.values(daysMap).reduce((acc, items) => acc + items.length, 0);
+
+                return (
+                  <div key={monthKey} className="border border-slate-200 rounded-xl overflow-hidden transition">
+                    {/* แถบหัวข้อเดือนสำหรับกด ยุบ/ขยาย */}
+                    <button
+                      onClick={() => toggleMonthExpansion(monthKey)}
+                      className="w-full bg-slate-50 hover:bg-slate-100 p-3.5 flex items-center justify-between text-left transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 text-sm">
+                          เดือน {formatMonthYearLabel(monthKey)}
+                        </span>
+                        <span className="text-xs bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-full">
+                          {totalMonthShifts} รายการ
+                        </span>
                       </div>
-                    ))}
+                      <div className="text-slate-500">
+                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                      </div>
+                    </button>
+
+                    {/* เนื้อหารายการภารกิจภายในเดือนนั้นๆ */}
+                    {isExpanded && (
+                      <div className="p-4 space-y-4 bg-white border-t border-slate-100">
+                        {Object.entries(daysMap).map(([dateStr, items]) => (
+                          <div key={dateStr} className="border-b border-slate-100 pb-3 last:border-none last:pb-0">
+                            <div className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md inline-block mb-2">
+                              {formatThaiDateShort(dateStr)}
+                            </div>
+                            <div className="space-y-2 pl-2">
+                              {items.map((item) => (
+                                <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/70 hover:bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs transition">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-slate-900">{item.memberName}</span>
+                                    {getTaskBadge(item.type)}
+                                    <span className="text-slate-700 font-medium">- {item.title}</span>
+                                    <span className="text-slate-400 text-[11px]">({formatThaiTime(item.startTime)} - {formatThaiTime(item.endTime)})</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0 self-end sm:self-center">
+                                    <button
+                                      onClick={() => handleOpenEdit(item)}
+                                      className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-800 px-2.5 py-1 rounded-lg text-xs font-medium transition border border-amber-200"
+                                      title="แก้ไขภารกิจ"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" /> แก้ไข
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteShift(item.id)}
+                                      className="flex items-center gap-1 bg-rose-50 hover:bg-rose-100 text-rose-700 px-2.5 py-1 rounded-lg text-xs font-medium transition border border-rose-200"
+                                      title="ลบภารกิจ"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" /> ลบ
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
