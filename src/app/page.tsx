@@ -16,6 +16,7 @@ import {
   Info,
   Download,
   BarChart3,
+  ListOrdered,
 } from "lucide-react";
 
 // === ตั้งค่าการเชื่อมต่อ Supabase ของ กก.ตชด.๒๓ ===
@@ -256,6 +257,20 @@ export default function TeamCalendarPage() {
     return `${formattedHours}.${formattedMinutes} น.`;
   };
 
+  const formatThaiDateShort = (dateStr: string) => {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-");
+    if (!y || !m || !d) return dateStr;
+    const thaiYear = parseInt(y) + 543;
+    const shortYear = thaiYear.toString().slice(-2);
+    const monthNamesShort = [
+      "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+      "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+    ];
+    const monthName = monthNamesShort[parseInt(m) - 1] || "";
+    return `${parseInt(d)} ${monthName} ${shortYear}`;
+  };
+
   const handleExportCSV = () => {
     if (shifts.length === 0) {
       alert("ไม่มีข้อมูลสำหรับส่งออก");
@@ -323,6 +338,16 @@ export default function TeamCalendarPage() {
   const filteredShifts =
     selectedMember === "all" ? shifts : shifts.filter((s) => s.memberId === selectedMember);
 
+  // จัดกลุ่มภารกิจของเดือนนี้ตามวันที่ เรียงจากน้อยไปมาก
+  const sortedMonthShifts = [...monthShifts].sort((a, b) => a.date.localeCompare(b.date));
+  const groupedByDate: { [date: string]: ShiftItem[] } = {};
+  sortedMonthShifts.forEach((s) => {
+    if (!groupedByDate[s.date]) {
+      groupedByDate[s.date] = [];
+    }
+    groupedByDate[s.date].push(s);
+  });
+
   const getTaskStyle = (type: string) => {
     switch (type) {
       case "attend":
@@ -340,19 +365,19 @@ export default function TeamCalendarPage() {
     switch (type) {
       case "attend":
         return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-sky-700 bg-sky-100 px-1 py-0.5 rounded">
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded">
             <Handshake className="w-2.5 h-2.5" /> ร่วมงาน
           </span>
         );
       case "photo":
         return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-800 bg-amber-200 px-1 py-0.5 rounded">
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-800 bg-amber-200 px-1.5 py-0.5 rounded">
             <Camera className="w-2.5 h-2.5" /> ช่างภาพ
           </span>
         );
       case "leave":
         return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-rose-800 bg-rose-200 px-1 py-0.5 rounded">
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-rose-800 bg-rose-200 px-1.5 py-0.5 rounded">
             <LogOut className="w-2.5 h-2.5" /> การลา
           </span>
         );
@@ -527,6 +552,44 @@ export default function TeamCalendarPage() {
           })}
         </div>
       </main>
+
+      {/* ส่วนแสดงรายการภารกิจรายวัน เรียงตามลำดับวันที่ */}
+      <section className="max-w-7xl mx-auto mb-6">
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+          <h2 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <ListOrdered className="w-5 h-5 text-blue-600" />
+            รายการภารกิจประจำเดือน {monthNames[currentMonth]} {currentYear + 543}
+          </h2>
+
+          {Object.keys(groupedByDate).length === 0 ? (
+            <p className="text-xs text-slate-400 py-4 text-center">ยังไม่มีการลงตารางงานในเดือนนี้</p>
+          ) : (
+            <div className="space-y-4">
+              {Object.entries(groupedByDate).map(([dateStr, items]) => (
+                <div key={dateStr} className="border-b border-slate-100 pb-3 last:border-none last:pb-0">
+                  <div className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md inline-block mb-2">
+                    {formatThaiDateShort(dateStr)}
+                  </div>
+                  <div className="space-y-2 pl-2">
+                    {items.map((item) => (
+                      <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 bg-slate-50/70 hover:bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs transition">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900">{item.memberName}</span>
+                          {getTaskBadge(item.type)}
+                          <span className="text-slate-700 font-medium">- {item.title}</span>
+                        </div>
+                        <div className="text-slate-500 text-[11px] shrink-0">
+                          เวลา {formatThaiTime(item.startTime)} - {formatThaiTime(item.endTime)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* สรุปสถิติประจำเดือน */}
       {showStats && (
