@@ -91,18 +91,52 @@ export default function TeamCalendarPage() {
   const [shiftTitle, setShiftTitle] = useState("");
   const [shiftType, setShiftType] = useState<"attend" | "photo" | "leave" | "general" | "duty">("attend");
 
-  // รายชื่อเดือนภาษาไทยแบบชัดเจน ป้องกันปัญหา undefined
+  // รายชื่อเดือนภาษาไทยแบบชัดเจน
   const monthNames = [
     "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
     "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
   ];
+
+  // ฟังก์ชันแปลงวันที่จาก Excel (รองรับทั้ง Serial Number และข้อความทุกรูปแบบ)
+  const parseExcelDate = (val: any): string => {
+    if (!val) return "2026-10-27";
+    
+    // ถ้าเป็นตัวเลข Serial Number ของ Excel
+    if (typeof val === "number") {
+      const utc_days = Math.floor(val - 25569);
+      const utc_value = utc_days * 86400;
+      const dateInfo = new Date(utc_value * 1000);
+      const year = dateInfo.getUTCFullYear();
+      const month = String(dateInfo.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(dateInfo.getUTCDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    const strVal = String(val).trim();
+    // ถ้าเป็นรูปแบบ YYYY-MM-DD อยู่แล้ว
+    if (/^\d{4}-\d{2}-\d{2}$/.test(strVal)) {
+      return strVal;
+    }
+
+    // ถ้าเป็นรูปแบบ DD/MM/YYYY หรือ D/M/YYYY
+    const parts = strVal.split(/[\/\-\.]/);
+    if (parts.length === 3) {
+      let d = parts[0].padStart(2, "0");
+      let m = parts[1].padStart(2, "0");
+      let y = parts[2];
+      if (y.length === 2) y = "20" + y; // แปลงปี 2 หลักเป็น 4 หลัก
+      if (parseInt(y) > 2500) y = String(parseInt(y) - 543); // แปลง พ.ศ. เป็น ค.ศ.
+      return `${y}-${m}-${d}`;
+    }
+
+    return strVal;
+  };
 
   // ดึงข้อมูลจาก Supabase เมื่อโหลดหน้าเว็บ
   useEffect(() => {
     fetchData();
   }, []);
 
-  // เปิดกางเดือนปัจจุบันไว้เป็นค่าเริ่มต้น
   useEffect(() => {
     const validMonth = (currentMonth ?? 9) + 1;
     const currentMonthKey = `${currentYear}-${validMonth.toString().padStart(2, "0")}`;
@@ -131,7 +165,7 @@ export default function TeamCalendarPage() {
           id: s.id,
           memberId: s.member_id || "general",
           memberName: s.member_name || "ประกาศทั่วไป",
-          date: s.date,
+          date: s.date || "2026-10-27",
           startTime: s.start_time || "",
           endTime: s.end_time || "",
           title: s.title || "เวรประจำวัน",
@@ -274,7 +308,7 @@ export default function TeamCalendarPage() {
     setIsShiftModalOpen(false);
   };
 
-  // ฟังก์ชันอัปโหลดไฟล์ Excel สำหรับตารางเวร (รองรับคอลัมน์: ชื่อ-นามสกุล, วันที่)
+  // ฟังก์ชันอัปโหลดไฟล์ Excel สำหรับตารางเวร (ใช้ฟังก์ชันแปลงวันที่รองรับ Excel Format)
   const handleDutyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -293,6 +327,9 @@ export default function TeamCalendarPage() {
 
         data.forEach((row) => {
           const rowName = row["ชื่อ-นามสกุล"] || "";
+          const rawDate = row["วันที่"];
+          const formattedDate = parseExcelDate(rawDate);
+
           const matchedMember = members.find((m) => m.name.includes(rowName));
           const memberId = matchedMember ? matchedMember.id : "duty_group";
           const memberName = rowName || "เวรประจำวัน";
@@ -301,7 +338,7 @@ export default function TeamCalendarPage() {
             id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
             member_id: memberId,
             member_name: memberName,
-            date: row["วันที่"],
+            date: formattedDate,
             start_time: "08:30",
             end_time: "16:30",
             title: "เวรประจำวัน",
@@ -558,43 +595,6 @@ export default function TeamCalendarPage() {
         return "bg-purple-500/15 border-purple-300 text-purple-950 font-semibold hover:bg-purple-500/25";
       default:
         return "bg-slate-100 border-slate-200 text-slate-800";
-    }
-  };
-
-  const getTaskBadge = (type: string) => {
-    switch (type) {
-      case "attend":
-        return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-sky-700 bg-sky-100 px-1.5 py-0.5 rounded">
-            <Handshake className="w-2.5 h-2.5" /> ร่วมงาน
-          </span>
-        );
-      case "photo":
-        return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-800 bg-amber-200 px-1.5 py-0.5 rounded">
-            <Camera className="w-2.5 h-2.5" /> ช่างภาพ
-          </span>
-        );
-      case "leave":
-        return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-rose-800 bg-rose-200 px-1.5 py-0.5 rounded">
-            <LogOut className="w-2.5 h-2.5" /> การลา
-          </span>
-        );
-      case "general":
-        return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-800 bg-emerald-200 px-1.5 py-0.5 rounded">
-            <Megaphone className="w-2.5 h-2.5" /> ประกาศทั่วไป
-          </span>
-        );
-      case "duty":
-        return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-purple-800 bg-purple-200 px-1.5 py-0.5 rounded">
-            <ShieldAlert className="w-2.5 h-2.5" /> เวรประจำวัน
-          </span>
-        );
-      default:
-        return null;
     }
   };
 
