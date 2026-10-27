@@ -315,7 +315,7 @@ export default function TeamCalendarPage() {
     setIsShiftModalOpen(false);
   };
 
-  // นำเข้า Excel สำหรับตารางเวร (กำหนดให้เป็นประเภท duty - เวรแผนก สีม่วง)
+  // นำเข้า Excel สำหรับตารางเวร (เวรแผนก)
   const handleDutyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -376,7 +376,6 @@ export default function TeamCalendarPage() {
     setIsEditModalOpen(true);
   };
 
-  // แก้ไขข้อมูลภารกิจ/เวร
   const handleUpdateShift = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingShift) return;
@@ -396,7 +395,6 @@ export default function TeamCalendarPage() {
     }
 
     let titleText = editingShift.title.trim();
-    // อัปเดตชื่อหัวข้ออัตโนมัติหากเปลี่ยนประเภทเวร
     switch (editingShift.type) {
       case "senior_officer": titleText = "นายร้อยตำรวจเวรผู้ใหญ่"; break;
       case "admin_officer": titleText = "นายร้อยเวรอำนวยการ"; break;
@@ -561,6 +559,18 @@ export default function TeamCalendarPage() {
   const totalGeneral = monthShifts.filter((s) => s.type === "general").length;
   const totalAllShifts = monthShifts.length;
 
+  const memberStats = members.map((m) => {
+    const mShifts = monthShifts.filter((s) => s.memberId === m.id);
+    return {
+      id: m.id,
+      name: m.name,
+      attendCount: mShifts.filter((s) => s.type === "attend").length,
+      photoCount: mShifts.filter((s) => s.type === "photo").length,
+      leaveCount: mShifts.filter((s) => s.type === "leave").length,
+      totalCount: mShifts.filter((s) => s.type !== "general" && s.type !== "duty").length,
+    };
+  });
+
   const filteredShifts =
     selectedMember === "all" ? tabFilteredShifts : tabFilteredShifts.filter((s) => s.memberId === selectedMember || s.type === "general");
 
@@ -636,14 +646,16 @@ export default function TeamCalendarPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setShowStats(!showStats)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition ${
-              showStats ? "bg-blue-600 text-white shadow-xs" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" /> สถิติประจำเดือน
-          </button>
+          {activeTab === "volunteer" && (
+            <button
+              onClick={() => setShowStats(!showStats)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition ${
+                showStats ? "bg-blue-600 text-white shadow-xs" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" /> สถิติประจำเดือน
+            </button>
+          )}
 
           <button
             onClick={handleExportCSV}
@@ -861,42 +873,59 @@ export default function TeamCalendarPage() {
         </div>
       </section>
 
-      {/* สรุปสถิติประจำเดือน */}
-      {showStats && (
+      {/* สรุปสถิติประจำเดือน (แสดงเฉพาะหน้าภารกิจจิตอาสาเท่านั้น หน้าตารางเวรจะไม่แสดงตามต้องการ) */}
+      {activeTab === "volunteer" && showStats && (
         <section className="max-w-7xl mx-auto space-y-4">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
             <h2 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-blue-600" />
-              {activeTab === "duty" ? `สรุปสถิติตารางเวรประจำวัน (${displayMonthName} ${currentYear + 543})` : `สรุปสถิติประจำเดือน ${displayMonthName} ${currentYear + 543}`}
+              สรุปสถิติประจำเดือน {displayMonthName} {currentYear + 543}
             </h2>
 
-            {activeTab === "volunteer" ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-sky-50 border border-sky-100 p-3.5 rounded-xl">
-                  <span className="text-xs text-sky-700 font-medium block">ร่วมงานทั้งหมด</span>
-                  <span className="text-2xl font-bold text-sky-900">{totalAttend} <span className="text-xs font-normal">ครั้ง</span></span>
-                </div>
-                <div className="bg-amber-50 border border-amber-100 p-3.5 rounded-xl">
-                  <span className="text-xs text-amber-800 font-medium block">ภารกิจช่างภาพ</span>
-                  <span className="text-2xl font-bold text-amber-950">{totalPhoto} <span className="text-xs font-normal">ครั้ง</span></span>
-                </div>
-                <div className="bg-emerald-50 border border-emerald-100 p-3.5 rounded-xl">
-                  <span className="text-xs text-emerald-800 font-medium block">แจ้งงานทั่วไป</span>
-                  <span className="text-2xl font-bold text-emerald-950">{totalGeneral} <span className="text-xs font-normal">รายการ</span></span>
-                </div>
-                <div className="bg-slate-100 border border-slate-200 p-3.5 rounded-xl">
-                  <span className="text-xs text-slate-600 font-medium block">รวมภารกิจทั้งหมด</span>
-                  <span className="text-2xl font-bold text-slate-900">{totalAllShifts} <span className="text-xs font-normal">รายการ</span></span>
-                </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+              <div className="bg-sky-50 border border-sky-100 p-3.5 rounded-xl">
+                <span className="text-xs text-sky-700 font-medium block">ร่วมงานทั้งหมด</span>
+                <span className="text-2xl font-bold text-sky-900">{totalAttend} <span className="text-xs font-normal">ครั้ง</span></span>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="bg-purple-50 border border-purple-100 p-3.5 rounded-xl">
-                  <span className="text-xs text-purple-700 font-medium block">เวรประจำทั้งหมดในเดือนนี้</span>
-                  <span className="text-2xl font-bold text-purple-900">{monthShifts.length} <span className="text-xs font-normal">เวร</span></span>
-                </div>
+              <div className="bg-amber-50 border border-amber-100 p-3.5 rounded-xl">
+                <span className="text-xs text-amber-800 font-medium block">ภารกิจช่างภาพ</span>
+                <span className="text-2xl font-bold text-amber-950">{totalPhoto} <span className="text-xs font-normal">ครั้ง</span></span>
               </div>
-            )}
+              <div className="bg-emerald-50 border border-emerald-100 p-3.5 rounded-xl">
+                <span className="text-xs text-emerald-800 font-medium block">แจ้งงานทั่วไป</span>
+                <span className="text-2xl font-bold text-emerald-950">{totalGeneral} <span className="text-xs font-normal">รายการ</span></span>
+              </div>
+              <div className="bg-slate-100 border border-slate-200 p-3.5 rounded-xl">
+                <span className="text-xs text-slate-600 font-medium block">รวมภารกิจทั้งหมด</span>
+                <span className="text-2xl font-bold text-slate-900">{totalAllShifts} <span className="text-xs font-normal">รายการ</span></span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <h3 className="text-xs font-semibold text-slate-500 mb-2">ตารางสรุปการปฏิบัติงานรายบุคคล</h3>
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 border-y border-slate-200">
+                    <th className="p-2.5 font-semibold">ชื่อ-นามสกุล</th>
+                    <th className="p-2.5 text-center font-semibold text-sky-700">ร่วมงาน</th>
+                    <th className="p-2.5 text-center font-semibold text-amber-800">ช่างภาพ</th>
+                    <th className="p-2.5 text-center font-semibold text-rose-800">การลา</th>
+                    <th className="p-2.5 text-center font-semibold text-slate-900">รวม (ครั้ง)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {memberStats.map((ms) => (
+                    <tr key={ms.id} className="hover:bg-slate-50/50 transition">
+                      <td className="p-2.5 font-medium text-slate-800">{ms.name}</td>
+                      <td className="p-2.5 text-center text-slate-700">{ms.attendCount || "-"}</td>
+                      <td className="p-2.5 text-center text-slate-700">{ms.photoCount || "-"}</td>
+                      <td className="p-2.5 text-center font-medium text-rose-600">{ms.leaveCount || "-"}</td>
+                      <td className="p-2.5 text-center font-bold text-slate-900">{ms.totalCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
       )}
@@ -957,7 +986,7 @@ export default function TeamCalendarPage() {
         </div>
       )}
 
-      {/* Modal แก้ไขข้อมูล (ปรับปรุงให้รองรับทุกประเภทเวร/ภารกิจ) */}
+      {/* Modal แก้ไขข้อมูล */}
       {isEditModalOpen && editingShift && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100">
@@ -978,12 +1007,10 @@ export default function TeamCalendarPage() {
                   onChange={(e) => setEditingShift({ ...editingShift, type: e.target.value as any })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
                 >
-                  {/* ตัวเลือกแท็บจิตอาสา */}
                   <option value="attend">ร่วมงาน</option>
                   <option value="photo">ช่างภาพ</option>
                   <option value="leave">การลา</option>
                   <option value="general">แจ้งงานทั่วไป</option>
-                  {/* ตัวเลือกแท็บเวรประจำวัน */}
                   <option value="senior_officer">🟡 นายร้อยตำรวจเวรผู้ใหญ่</option>
                   <option value="admin_officer">🔵 นายร้อยเวรอำนวยการ</option>
                   <option value="assistant_admin">🟢 ผู้ช่วยนายร้อยเวรอำนวยการ</option>
