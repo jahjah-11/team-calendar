@@ -91,6 +91,12 @@ export default function TeamCalendarPage() {
   const [shiftTitle, setShiftTitle] = useState("");
   const [shiftType, setShiftType] = useState<"attend" | "photo" | "leave" | "general" | "duty">("attend");
 
+  // รายชื่อเดือนภาษาไทยแบบชัดเจน ป้องกันปัญหา undefined
+  const monthNames = [
+    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+  ];
+
   // ดึงข้อมูลจาก Supabase เมื่อโหลดหน้าเว็บ
   useEffect(() => {
     fetchData();
@@ -98,7 +104,8 @@ export default function TeamCalendarPage() {
 
   // เปิดกางเดือนปัจจุบันไว้เป็นค่าเริ่มต้น
   useEffect(() => {
-    const currentMonthKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, "0")}`;
+    const validMonth = (currentMonth ?? 9) + 1;
+    const currentMonthKey = `${currentYear}-${validMonth.toString().padStart(2, "0")}`;
     setExpandedMonths((prev) => ({
       ...prev,
       [currentMonthKey]: true,
@@ -138,8 +145,9 @@ export default function TeamCalendarPage() {
   };
 
   const getDaysInMonth = (year: number, month: number) => {
-    const firstDayIndex = new Date(year, month, 1).getDay();
-    const totalDays = new Date(year, month + 1, 0).getDate();
+    const safeMonth = month ?? 9;
+    const firstDayIndex = new Date(year, safeMonth, 1).getDay();
+    const totalDays = new Date(year, safeMonth + 1, 0).getDate();
     const days = [];
 
     for (let i = 0; i < firstDayIndex; i++) {
@@ -152,10 +160,6 @@ export default function TeamCalendarPage() {
   };
 
   const daysArray = getDaysInMonth(currentYear, currentMonth);
-  const monthNames = [
-    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
-  ];
 
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
@@ -401,16 +405,6 @@ export default function TeamCalendarPage() {
     }
   };
 
-  const formatThaiTime = (timeStr: string) => {
-    if (!timeStr) return "";
-    const cleanTime = timeStr.replace(/\s*น\.?$/i, "").trim();
-    const [hours, minutes] = cleanTime.split(/[:.]/);
-    if (!hours) return timeStr;
-    const formattedHours = hours.padStart(2, "0");
-    const formattedMinutes = (minutes || "00").padStart(2, "0");
-    return `${formattedHours}.${formattedMinutes} น.`;
-  };
-
   const formatThaiDateShort = (dateStr: string) => {
     if (!dateStr) return "";
     const [y, m, d] = dateStr.split("-");
@@ -421,15 +415,18 @@ export default function TeamCalendarPage() {
       "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
       "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
     ];
-    const monthName = monthNamesShort[parseInt(m) - 1] || "";
+    const monthIndex = parseInt(m) - 1;
+    const monthName = monthNamesShort[monthIndex] || "";
     return `${parseInt(d)} ${monthName} ${shortYear}`;
   };
 
   const formatMonthYearLabel = (monthKey: string) => {
+    if (!monthKey) return "";
     const [yStr, mStr] = monthKey.split("-");
     const y = parseInt(yStr);
     const m = parseInt(mStr) - 1;
-    return `${monthNames[m]} ${y + 543}`;
+    const safeMonthName = monthNames[m] || "มกราคม";
+    return `${safeMonthName} ${y + 543}`;
   };
 
   const handleExportCSV = () => {
@@ -448,8 +445,8 @@ export default function TeamCalendarPage() {
       const row = [
         `"${s.memberName}"`,
         s.date,
-        `"${formatThaiTime(s.startTime)}"`,
-        `"${formatThaiTime(s.endTime)}"`,
+        `""`,
+        `""`,
         typeLabel,
         `"${s.title}"`,
       ].join(",");
@@ -460,7 +457,7 @@ export default function TeamCalendarPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `${activeTab === "duty" ? "duty-schedule" : "volunteer-schedule"}-${currentYear}-${currentMonth + 1}.csv`);
+    link.setAttribute("download", `${activeTab === "duty" ? "duty-schedule" : "volunteer-schedule"}-${currentYear}-${(currentMonth ?? 0) + 1}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -488,8 +485,9 @@ export default function TeamCalendarPage() {
     }
   });
 
-  const currentMonthPrefix = `${currentYear}-${(currentMonth + 1).toString().padStart(2, "0")}`;
-  const monthShifts = tabFilteredShifts.filter((s) => s.date.startsWith(currentMonthPrefix));
+  const safeMonthNum = (currentMonth ?? 9) + 1;
+  const currentMonthPrefix = `${currentYear}-${safeMonthNum.toString().padStart(2, "0")}`;
+  const monthShifts = tabFilteredShifts.filter((s) => s.date && s.date.startsWith(currentMonthPrefix));
 
   const totalAttend = monthShifts.filter((s) => s.type === "attend").length;
   const totalPhoto = monthShifts.filter((s) => s.type === "photo").length;
@@ -526,15 +524,16 @@ export default function TeamCalendarPage() {
 
   const sortedAllShifts = [...filteredShifts].sort((a, b) => {
     if (a.date !== b.date) {
-      return a.date.localeCompare(b.date);
+      return (a.date || "").localeCompare(b.date || "");
     }
-    return a.startTime.localeCompare(b.startTime);
+    return (a.startTime || "").localeCompare(b.startTime || "");
   });
 
   const upcomingShifts = sortedAllShifts.filter((s) => s.date >= todayDateStr);
 
   const shiftsByMonth: { [monthKey: string]: { [dateStr: string]: ShiftItem[] } } = {};
   upcomingShifts.forEach((s) => {
+    if (!s.date) return;
     const monthKey = s.date.substring(0, 7);
     if (!shiftsByMonth[monthKey]) {
       shiftsByMonth[monthKey] = {};
@@ -599,6 +598,8 @@ export default function TeamCalendarPage() {
     }
   };
 
+  const displayMonthName = monthNames[currentMonth ?? 9] || "ตุลาคม";
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6">
       {/* Header */}
@@ -654,7 +655,7 @@ export default function TeamCalendarPage() {
         </div>
       </header>
 
-      {/* แท็บสลับหมวดหมู่ (Tabs) แยกขาดจากกันอย่างชัดเจน พร้อมปุ่มอัปโหลด Excel สำหรับเวร */}
+      {/* แท็บสลับหมวดหมู่ (Tabs) */}
       <div className="max-w-7xl mx-auto mb-6 flex gap-2 border-b border-slate-200 pb-3 items-center justify-between flex-wrap">
         <div className="flex gap-2">
           <button
@@ -702,7 +703,7 @@ export default function TeamCalendarPage() {
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="font-semibold text-base md:text-lg px-2">
-              {monthNames[currentMonth]} {currentYear + 543}
+              {displayMonthName} {currentYear + 543}
             </span>
             <button onClick={handleNextMonth} className="p-2 hover:bg-white rounded-lg border border-slate-200 transition">
               <ChevronRight className="w-4 h-4" />
@@ -739,7 +740,8 @@ export default function TeamCalendarPage() {
             }
 
             const formattedDay = day < 10 ? `0${day}` : `${day}`;
-            const formattedMonth = currentMonth + 1 < 10 ? `0${currentMonth + 1}` : `${currentMonth + 1}`;
+            const mNum = (currentMonth ?? 9) + 1;
+            const formattedMonth = mNum < 10 ? `0${mNum}` : `${mNum}`;
             const dateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
 
             const dayShifts = filteredShifts.filter((s) => s.date === dateStr);
@@ -889,7 +891,7 @@ export default function TeamCalendarPage() {
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
             <h2 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-blue-600" />
-              {activeTab === "duty" ? `สรุปสถิติตารางเวรประจำวัน (${monthNames[currentMonth]} ${currentYear + 543})` : `สรุปสถิติประจำเดือน ${monthNames[currentMonth]} ${currentYear + 543}`}
+              {activeTab === "duty" ? `สรุปสถิติตารางเวรประจำวัน (${displayMonthName} ${currentYear + 543})` : `สรุปสถิติประจำเดือน ${displayMonthName} ${currentYear + 543}`}
             </h2>
 
             {activeTab === "volunteer" ? (
