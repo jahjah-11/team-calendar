@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import * as XLSX from "xlsx";
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,6 +23,7 @@ import {
   ChevronUp,
   Megaphone,
   ShieldAlert,
+  FileSpreadsheet,
 } from "lucide-react";
 
 // === ตั้งค่าการเชื่อมต่อ Supabase ของ กก.ตชด.๒๓ ===
@@ -125,7 +127,7 @@ export default function TeamCalendarPage() {
           date: s.date,
           startTime: s.start_time || "",
           endTime: s.end_time || "",
-          title: s.title,
+          title: s.title || "เวรประจำวัน",
           type: s.type || "attend",
         }));
         setShifts(formattedShifts);
@@ -266,6 +268,56 @@ export default function TeamCalendarPage() {
 
     setShiftTitle("");
     setIsShiftModalOpen(false);
+  };
+
+  // ฟังก์ชันอัปโหลดไฟล์ Excel สำหรับตารางเวร (รองรับคอลัมน์: ชื่อ-นามสกุล, วันที่)
+  const handleDutyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsName = wb.SheetNames[0];
+        const ws = wb.Sheets[wsName];
+        const data: any[] = XLSX.utils.sheet_to_json(ws);
+
+        const supabase = getSupabase();
+        const newShiftsToInsert: any[] = [];
+
+        data.forEach((row) => {
+          const rowName = row["ชื่อ-นามสกุล"] || "";
+          const matchedMember = members.find((m) => m.name.includes(rowName));
+          const memberId = matchedMember ? matchedMember.id : "duty_group";
+          const memberName = rowName || "เวรประจำวัน";
+
+          newShiftsToInsert.push({
+            id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
+            member_id: memberId,
+            member_name: memberName,
+            date: row["วันที่"],
+            start_time: "08:30",
+            end_time: "16:30",
+            title: "เวรประจำวัน",
+            type: "duty",
+          });
+        });
+
+        if (newShiftsToInsert.length > 0) {
+          const { error } = await supabase.from("shifts").insert(newShiftsToInsert);
+          if (error) throw error;
+          alert(`นำเข้าตารางเวรสำเร็จทั้งหมด ${newShiftsToInsert.length} รายการ!`);
+          fetchData();
+        }
+      } catch (err) {
+        console.error(err);
+        alert("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel กรุณาตรวจสอบหัวคอลัมน์ว่ามี 'ชื่อ-นามสกุล' และ 'วันที่'");
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
   };
 
   const handleOpenEdit = (shift: ShiftItem) => {
@@ -602,35 +654,44 @@ export default function TeamCalendarPage() {
         </div>
       </header>
 
-      {/* แท็บสลับหมวดหมู่ (Tabs) แยกขาดจากกันอย่างชัดเจน */}
-      <div className="max-w-7xl mx-auto mb-6 flex gap-2 border-b border-slate-200 pb-3">
-        <button
-          onClick={() => {
-            setActiveTab("volunteer");
-            setShiftType("attend");
-          }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition shadow-xs ${
-            activeTab === "volunteer"
-              ? "bg-blue-600 text-white"
-              : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
-          }`}
-        >
-          <CalendarIcon className="w-4 h-4" /> 📅 ภารกิจจิตอาสา / งานประจำวัน
-        </button>
+      {/* แท็บสลับหมวดหมู่ (Tabs) แยกขาดจากกันอย่างชัดเจน พร้อมปุ่มอัปโหลด Excel สำหรับเวร */}
+      <div className="max-w-7xl mx-auto mb-6 flex gap-2 border-b border-slate-200 pb-3 items-center justify-between flex-wrap">
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setActiveTab("volunteer");
+              setShiftType("attend");
+            }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition shadow-xs ${
+              activeTab === "volunteer"
+                ? "bg-blue-600 text-white"
+                : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
+            }`}
+          >
+            <CalendarIcon className="w-4 h-4" /> 📅 ภารกิจจิตอาสา / งานประจำวัน
+          </button>
 
-        <button
-          onClick={() => {
-            setActiveTab("duty");
-            setShiftType("duty");
-          }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition shadow-xs ${
-            activeTab === "duty"
-              ? "bg-purple-600 text-white"
-              : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
-          }`}
-        >
-          <ShieldAlert className="w-4 h-4" /> 📋 ตารางเวรประจำวัน
-        </button>
+          <button
+            onClick={() => {
+              setActiveTab("duty");
+              setShiftType("duty");
+            }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition shadow-xs ${
+              activeTab === "duty"
+                ? "bg-purple-600 text-white"
+                : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4" /> 📋 ตารางเวรประจำวัน
+          </button>
+        </div>
+
+        {activeTab === "duty" && (
+          <label className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer transition shadow-sm">
+            <FileSpreadsheet className="w-4 h-4" /> นำเข้า Excel ตารางเวร
+            <input type="file" accept=".xlsx, .xls, .csv" onChange={handleDutyFileUpload} className="hidden" />
+          </label>
+        )}
       </div>
 
       {/* Calendar Main */}
@@ -730,23 +791,9 @@ export default function TeamCalendarPage() {
                         }
                         className={`text-[11px] p-1.5 rounded-md border cursor-pointer transition ${getTaskStyle(firstItem.type)}`}
                       >
-                        <div className="flex items-center justify-between gap-1 mb-0.5">
-                          {getTaskBadge(firstItem.type)}
-                          {firstItem.type !== "general" && (
-                            <span className="text-[9px] text-slate-500 font-medium">
-                              {formatThaiTime(firstItem.startTime)}
-                            </span>
-                          )}
-                        </div>
-
                         <div className="font-semibold text-slate-900 truncate leading-tight">
-                          {firstItem.type === "duty" ? `${firstItem.memberName}: ${firstItem.title}` : namesSummary}
+                          {firstItem.type === "duty" ? `${firstItem.memberName}` : namesSummary}
                         </div>
-                        {firstItem.type !== "general" && firstItem.type !== "duty" && (
-                          <div className="text-[10px] text-slate-600 truncate">
-                            {firstItem.title}
-                          </div>
-                        )}
                       </div>
                     );
                   })}
@@ -803,24 +850,7 @@ export default function TeamCalendarPage() {
                               {items.map((item) => (
                                 <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/70 hover:bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs transition">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    {item.type === "general" || item.type === "duty" ? (
-                                      <>
-                                        {getTaskBadge(item.type)}
-                                        <span className="font-bold text-slate-900">
-                                          {item.type === "duty" ? `${item.memberName} - ${item.title}` : item.title}
-                                        </span>
-                                        {item.type === "duty" && (
-                                          <span className="text-slate-400 text-[11px]">({formatThaiTime(item.startTime)} - {formatThaiTime(item.endTime)})</span>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span className="font-bold text-slate-900">{item.memberName}</span>
-                                        {getTaskBadge(item.type)}
-                                        <span className="text-slate-700 font-medium">- {item.title}</span>
-                                        <span className="text-slate-400 text-[11px]">({formatThaiTime(item.startTime)} - {formatThaiTime(item.endTime)})</span>
-                                      </>
-                                    )}
+                                    <span className="font-bold text-slate-900">{item.memberName}</span>
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0 self-end sm:self-center">
                                     <button
@@ -958,28 +988,8 @@ export default function TeamCalendarPage() {
 
             <div className="space-y-3 text-sm">
               <div>
-                <span className="text-xs text-slate-400 block font-medium">หัวข้อ / รายละเอียด</span>
-                <span className="font-semibold text-slate-800 text-base">{activeGroupDetail.title}</span>
-              </div>
-
-              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <div>
-                  <span className="text-xs text-slate-400 block font-medium">วันที่</span>
-                  <span className="font-medium text-slate-700">{activeGroupDetail.date}</span>
-                </div>
-                {activeGroupDetail.type !== "general" && (
-                  <div>
-                    <span className="text-xs text-slate-400 block font-medium">เวลา</span>
-                    <span className="font-medium text-slate-700">
-                      {formatThaiTime(activeGroupDetail.startTime)} - {formatThaiTime(activeGroupDetail.endTime)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <span className="text-xs text-slate-400 block mb-1 font-medium">ประเภท</span>
-                {getTaskBadge(activeGroupDetail.type)}
+                <span className="text-xs text-slate-400 block font-medium">วันที่</span>
+                <span className="font-medium text-slate-700">{activeGroupDetail.date}</span>
               </div>
 
               <div>
@@ -1030,22 +1040,20 @@ export default function TeamCalendarPage() {
             </div>
 
             <form onSubmit={handleUpdateShift} className="space-y-4">
-              {editingShift.type !== "general" && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">ผู้รับผิดชอบ / กำลังพล</label>
-                  <select
-                    value={editingShift.memberId}
-                    onChange={(e) => setEditingShift({ ...editingShift, memberId: e.target.value })}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {members.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">ผู้รับผิดชอบ / กำลังพล</label>
+                <select
+                  value={editingShift.memberId}
+                  onChange={(e) => setEditingShift({ ...editingShift, memberId: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">วันที่</label>
@@ -1054,40 +1062,6 @@ export default function TeamCalendarPage() {
                   value={editingShift.date}
                   onChange={(e) => setEditingShift({ ...editingShift, date: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {editingShift.type !== "general" && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาเริ่ม</label>
-                    <input
-                      type="time"
-                      value={editingShift.startTime}
-                      onChange={(e) => setEditingShift({ ...editingShift, startTime: e.target.value })}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาสิ้นสุด</label>
-                    <input
-                      type="time"
-                      value={editingShift.endTime}
-                      onChange={(e) => setEditingShift({ ...editingShift, endTime: e.target.value })}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">รายละเอียด</label>
-                <input
-                  type="text"
-                  value={editingShift.title}
-                  onChange={(e) => setEditingShift({ ...editingShift, title: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
                 />
               </div>
 
@@ -1149,41 +1123,6 @@ export default function TeamCalendarPage() {
                   value={shiftDate}
                   onChange={(e) => setShiftDate(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาเริ่ม</label>
-                  <input
-                    type="time"
-                    value={shiftStartTime}
-                    onChange={(e) => setShiftStartTime(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาสิ้นสุด</label>
-                  <input
-                    type="time"
-                    value={shiftEndTime}
-                    onChange={(e) => setShiftEndTime(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">
-                  {activeTab === "duty" ? "หน้าที่เวร / ตำแหน่งเวร" : "รายละเอียดภารกิจ"}
-                </label>
-                <input
-                  type="text"
-                  placeholder={activeTab === "duty" ? "เช่น เวรผลัดที่ 1, เวรยามกองรักษาการณ์" : "เช่น พิธีมอบทุนการศึกษา"}
-                  value={shiftTitle}
-                  onChange={(e) => setShiftTitle(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
                 />
               </div>
 
