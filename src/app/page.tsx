@@ -97,12 +97,14 @@ export default function TeamCalendarPage() {
     "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
   ];
 
-  // ฟังก์ชันแปลงวันที่จาก Excel (รองรับทั้ง Serial Number และข้อความทุกรูปแบบ)
-  const parseExcelDate = (val: any): string => {
-    if (!val) return "2026-10-27";
+  // ฟังก์ชันแปลงวันที่จาก Excel อย่างแม่นยำ ป้องกันปีเพี้ยน
+  const parseExcelDate = (val: any): string | null => {
+    if (!val) return null;
     
     // ถ้าเป็นตัวเลข Serial Number ของ Excel
     if (typeof val === "number") {
+      // ป้องกันค่า Serial ที่เกินจริงหรือต่ำกว่าปี 2024
+      if (val < 45000 || val > 50000) return null;
       const utc_days = Math.floor(val - 25569);
       const utc_value = utc_days * 86400;
       const dateInfo = new Date(utc_value * 1000);
@@ -113,23 +115,24 @@ export default function TeamCalendarPage() {
     }
 
     const strVal = String(val).trim();
-    // ถ้าเป็นรูปแบบ YYYY-MM-DD อยู่แล้ว
+    // ถ้าเจอคำว่า "วันที่" หรือหัวตาราง ให้ข้ามทันที
+    if (strVal.includes("วันที่") || strVal.includes("ชื่อ")) return null;
+
     if (/^\d{4}-\d{2}-\d{2}$/.test(strVal)) {
       return strVal;
     }
 
-    // ถ้าเป็นรูปแบบ DD/MM/YYYY หรือ D/M/YYYY
     const parts = strVal.split(/[\/\-\.]/);
     if (parts.length === 3) {
       let d = parts[0].padStart(2, "0");
       let m = parts[1].padStart(2, "0");
       let y = parts[2];
-      if (y.length === 2) y = "20" + y; // แปลงปี 2 หลักเป็น 4 หลัก
-      if (parseInt(y) > 2500) y = String(parseInt(y) - 543); // แปลง พ.ศ. เป็น ค.ศ.
+      if (y.length === 2) y = "20" + y;
+      if (parseInt(y) > 2500) y = String(parseInt(y) - 543);
       return `${y}-${m}-${d}`;
     }
 
-    return strVal;
+    return null;
   };
 
   // ดึงข้อมูลจาก Supabase เมื่อโหลดหน้าเว็บ
@@ -168,7 +171,7 @@ export default function TeamCalendarPage() {
           date: s.date || "2026-10-27",
           startTime: s.start_time || "",
           endTime: s.end_time || "",
-          title: s.title || "เวรประจำวัน",
+          title: s.title || "",
           type: s.type || "attend",
         }));
         setShifts(formattedShifts);
@@ -255,7 +258,7 @@ export default function TeamCalendarPage() {
 
   const handleAddShift = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shiftTitle.trim()) return;
+    if (activeTab === "volunteer" && !shiftTitle.trim()) return;
 
     let memberId = shiftMemberId;
     let memberName = "";
@@ -271,6 +274,8 @@ export default function TeamCalendarPage() {
       memberName = member.name;
     }
 
+    const titleText = targetType === "duty" ? "เวรประจำวัน" : shiftTitle.trim();
+
     const newId = Date.now().toString();
     const newShiftDb = {
       id: newId,
@@ -279,7 +284,7 @@ export default function TeamCalendarPage() {
       date: shiftDate,
       start_time: shiftStartTime,
       end_time: shiftEndTime,
-      title: shiftTitle.trim(),
+      title: titleText,
       type: targetType,
     };
 
@@ -299,7 +304,7 @@ export default function TeamCalendarPage() {
         date: shiftDate,
         startTime: shiftStartTime,
         endTime: shiftEndTime,
-        title: shiftTitle.trim(),
+        title: titleText,
         type: targetType,
       },
     ]);
@@ -308,7 +313,7 @@ export default function TeamCalendarPage() {
     setIsShiftModalOpen(false);
   };
 
-  // ฟังก์ชันอัปโหลดไฟล์ Excel สำหรับตารางเวร (ใช้ฟังก์ชันแปลงวันที่รองรับ Excel Format)
+  // ฟังก์ชันอัปโหลดไฟล์ Excel สำหรับตารางเวร (กรองหัวตารางออกอัตโนมัติ)
   const handleDutyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -326,13 +331,16 @@ export default function TeamCalendarPage() {
         const newShiftsToInsert: any[] = [];
 
         data.forEach((row) => {
-          const rowName = row["ชื่อ-นามสกุล"] || "";
-          const rawDate = row["วันที่"];
+          const rowName = row["ชื่อ-นามสกุล"] || row["ชื่อ"] || "";
+          const rawDate = row["วันที่"] || row["date"];
           const formattedDate = parseExcelDate(rawDate);
+
+          // ข้ามถ้าไม่มีชื่อ หรือวันที่ไม่ถูกต้อง (ป้องกันแถวหัวตาราง)
+          if (!rowName || !formattedDate || String(rowName).includes("ชื่อ-นามสกุล")) return;
 
           const matchedMember = members.find((m) => m.name.includes(rowName));
           const memberId = matchedMember ? matchedMember.id : "duty_group";
-          const memberName = rowName || "เวรประจำวัน";
+          const memberName = rowName;
 
           newShiftsToInsert.push({
             id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
@@ -351,10 +359,12 @@ export default function TeamCalendarPage() {
           if (error) throw error;
           alert(`นำเข้าตารางเวรสำเร็จทั้งหมด ${newShiftsToInsert.length} รายการ!`);
           fetchData();
+        } else {
+          alert("ไม่พบข้อมูลในไฟล์ Excel หรือรูปแบบหัวคอลัมน์ไม่ถูกต้อง (ต้องมีคอลัมน์ 'ชื่อ-นามสกุล' และ 'วันที่')");
         }
       } catch (err) {
         console.error(err);
-        alert("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel กรุณาตรวจสอบหัวคอลัมน์ว่ามี 'ชื่อ-นามสกุล' และ 'วันที่'");
+        alert("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel กรุณาตรวจสอบรูปแบบไฟล์");
       }
     };
     reader.readAsBinaryString(file);
@@ -442,6 +452,16 @@ export default function TeamCalendarPage() {
     }
   };
 
+  const formatThaiTime = (timeStr: string) => {
+    if (!timeStr) return "";
+    const cleanTime = timeStr.replace(/\s*น\.?$/i, "").trim();
+    const [hours, minutes] = cleanTime.split(/[:.]/);
+    if (!hours) return timeStr;
+    const formattedHours = hours.padStart(2, "0");
+    const formattedMinutes = (minutes || "00").padStart(2, "0");
+    return `${formattedHours}.${formattedMinutes} น.`;
+  };
+
   const formatThaiDateShort = (dateStr: string) => {
     if (!dateStr) return "";
     const [y, m, d] = dateStr.split("-");
@@ -482,8 +502,8 @@ export default function TeamCalendarPage() {
       const row = [
         `"${s.memberName}"`,
         s.date,
-        `""`,
-        `""`,
+        `"${formatThaiTime(s.startTime)}"`,
+        `"${formatThaiTime(s.endTime)}"`,
         typeLabel,
         `"${s.title}"`,
       ].join(",");
