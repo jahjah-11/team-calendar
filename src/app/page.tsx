@@ -490,7 +490,7 @@ export default function TeamCalendarPage() {
             <CalendarIcon className="w-6 h-6 text-blue-600" />
             ตารางปฏิบัติงานจิตอาสา
           </h1>
-          <p className="text-xs md:text-sm text-slate-500 mt-0.5">ระบบจัดการกะงานและภารกิจจิตอาสา กก.ตชด.๒๓ (ออนไลน์)</p>
+          <p className="text-xs md:text-sm text-slate-500 mt-0.5">ระบบจัดการงานและภารกิจจิตอาสา กก.ตชด.23 (ออนไลน์)</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
