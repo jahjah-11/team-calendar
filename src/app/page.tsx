@@ -385,7 +385,7 @@ export default function TeamCalendarPage() {
 
     shifts.forEach((s) => {
       const typeLabel =
-        s.type === "attend" ? "ร่วมงาน" : s.type === "photo" ? "ช่างภาพ" : s.type === "general" ? "แจ้งงานทั่วไป" : "การลา";
+        s.type === "attend" ? "ร่วมงาน" : s.type === "photo" ? "ช่างภาพ" : s.type === "leave" ? "การลา" : "แจ้งงานทั่วไป";
       const row = [
         `"${s.memberName}"`,
         s.date,
@@ -444,8 +444,8 @@ export default function TeamCalendarPage() {
   const filteredShifts =
     selectedMember === "all" ? shifts : shifts.filter((s) => s.memberId === selectedMember || s.type === "general");
 
-  // วันที่ปัจจุบันรูปแบบ YYYY-MM-DD สำหรับใช้กรองซ่อนรายการที่ผ่านไปแล้ว
-  const todayDateStr = "2026-10-27"; // หรือใช้ new Date().toISOString().split('T')[0]
+  // วันที่ปัจจุบันรูปแบบ YYYY-MM-DD
+  const todayDateStr = "2026-10-27";
 
   // เรียงลำดับข้อมูลภารกิจทั้งหมด (เก่าไปใหม่ และเวลาเริ่มก่อนไปหลัง)
   const sortedAllShifts = [...filteredShifts].sort((a, b) => {
@@ -980,7 +980,7 @@ export default function TeamCalendarPage() {
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">ประเภทภารกิจ</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-4 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setEditingShift({ ...editingShift, type: "attend" })}
@@ -995,6 +995,30 @@ export default function TeamCalendarPage() {
 
                   <button
                     type="button"
+                    onClick={() => setEditingShift({ ...editingShift, type: "photo" })}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
+                      editingShift.type === "photo"
+                        ? "bg-amber-400 text-amber-950 border-amber-500 ring-2 ring-amber-300"
+                        : "bg-amber-50 text-amber-900 border-amber-200"
+                    }`}
+                  >
+                    <Camera className="w-3.5 h-3.5" /> ช่างภาพ
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditingShift({ ...editingShift, type: "leave" })}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
+                      editingShift.type === "leave"
+                        ? "bg-rose-500 text-white border-rose-600 ring-2 ring-rose-300"
+                        : "bg-rose-50 text-rose-900 border-rose-200"
+                    }`}
+                  >
+                    <LogOut className="w-3.5 h-3.5" /> การลา
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setEditingShift({ ...editingShift, type: "general" })}
                     className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
                       editingShift.type === "general"
@@ -1002,7 +1026,7 @@ export default function TeamCalendarPage() {
                         : "bg-emerald-50 text-emerald-900 border-emerald-200"
                     }`}
                   >
-                    <Megaphone className="w-3.5 h-3.5" /> แจ้งงานทั่วไป
+                    <Megaphone className="w-3.5 h-3.5" /> ทั่วไป
                   </button>
                 </div>
               </div>
@@ -1104,7 +1128,7 @@ export default function TeamCalendarPage() {
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">ประเภทภารกิจ / ประกาศ</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-4 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setShiftType("attend")}
@@ -1119,6 +1143,30 @@ export default function TeamCalendarPage() {
 
                   <button
                     type="button"
+                    onClick={() => setShiftType("photo")}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
+                      shiftType === "photo"
+                        ? "bg-amber-400 text-amber-950 border-amber-500 ring-2 ring-amber-300"
+                        : "bg-amber-50 text-amber-900 border-amber-200"
+                    }`}
+                  >
+                    <Camera className="w-3.5 h-3.5" /> ช่างภาพ
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShiftType("leave")}
+                    className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
+                      shiftType === "leave"
+                        ? "bg-rose-500 text-white border-rose-600 ring-2 ring-rose-300"
+                        : "bg-rose-50 text-rose-900 border-rose-200"
+                    }`}
+                  >
+                    <LogOut className="w-3.5 h-3.5" /> การลา
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setShiftType("general")}
                     className={`p-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition ${
                       shiftType === "general"
@@ -1126,7 +1174,7 @@ export default function TeamCalendarPage() {
                         : "bg-emerald-50 text-emerald-900 border-emerald-200"
                     }`}
                   >
-                    <Megaphone className="w-3.5 h-3.5" /> แจ้งงานทั่วไป
+                    <Megaphone className="w-3.5 h-3.5" /> ทั่วไป
                   </button>
                 </div>
               </div>
