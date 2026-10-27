@@ -376,6 +376,7 @@ export default function TeamCalendarPage() {
     setIsEditModalOpen(true);
   };
 
+  // แก้ไขข้อมูลภารกิจ/เวร
   const handleUpdateShift = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingShift) return;
@@ -394,13 +395,24 @@ export default function TeamCalendarPage() {
       }
     }
 
+    let titleText = editingShift.title.trim();
+    // อัปเดตชื่อหัวข้ออัตโนมัติหากเปลี่ยนประเภทเวร
+    switch (editingShift.type) {
+      case "senior_officer": titleText = "นายร้อยตำรวจเวรผู้ใหญ่"; break;
+      case "admin_officer": titleText = "นายร้อยเวรอำนวยการ"; break;
+      case "assistant_admin": titleText = "ผู้ช่วยนายร้อยเวรอำนวยการ"; break;
+      case "admin_nco": titleText = "สิบเวร อำนวยการ"; break;
+      case "sod_nco": titleText = "สิบเวร ศปก."; break;
+      case "duty": titleText = "เวรแผนก"; break;
+    }
+
     const updatedDbData = {
       member_id: memberId,
       member_name: memberName,
       date: editingShift.date,
       start_time: editingShift.startTime,
       end_time: editingShift.endTime,
-      title: editingShift.title.trim(),
+      title: titleText,
       type: editingShift.type,
     };
 
@@ -418,7 +430,7 @@ export default function TeamCalendarPage() {
     setShifts(
       shifts.map((s) =>
         s.id === editingShift.id
-          ? { ...editingShift, memberId, memberName }
+          ? { ...editingShift, memberId, memberName, title: titleText }
           : s
       )
     );
@@ -583,12 +595,12 @@ export default function TeamCalendarPage() {
       case "photo": return "bg-amber-500/15 border-amber-300 text-amber-950";
       case "leave": return "bg-rose-500/15 border-rose-300 text-rose-950";
       case "general": return "bg-emerald-500/15 border-emerald-300 text-emerald-950";
-      case "senior_officer": return "bg-amber-200 border-amber-400 text-amber-900 font-semibold"; // สีเหลือง
-      case "admin_officer": return "bg-sky-200 border-sky-400 text-sky-900 font-semibold"; // สีฟ้า
-      case "assistant_admin": return "bg-emerald-200 border-emerald-400 text-emerald-900 font-semibold"; // สีเขียว
-      case "admin_nco": return "bg-pink-200 border-pink-400 text-pink-900 font-semibold"; // สีชมพู
-      case "sod_nco": return "bg-slate-200 border-slate-400 text-slate-800 font-semibold"; // สีเทา
-      case "duty": return "bg-purple-200 border-purple-400 text-purple-900 font-semibold"; // สีม่วง (เวรแผนก)
+      case "senior_officer": return "bg-amber-200 border-amber-400 text-amber-900 font-semibold";
+      case "admin_officer": return "bg-sky-200 border-sky-400 text-sky-900 font-semibold";
+      case "assistant_admin": return "bg-emerald-200 border-emerald-400 text-emerald-900 font-semibold";
+      case "admin_nco": return "bg-pink-200 border-pink-400 text-pink-900 font-semibold";
+      case "sod_nco": return "bg-slate-200 border-slate-400 text-slate-800 font-semibold";
+      case "duty": return "bg-purple-200 border-purple-400 text-purple-900 font-semibold";
       default: return "bg-slate-100 border-slate-200 text-slate-800";
     }
   };
@@ -781,7 +793,7 @@ export default function TeamCalendarPage() {
         </div>
       </main>
 
-      {/* ส่วนแสดงรายการรายเดือนที่กำลังจะมาถึง */}
+      {/* รายการรายเดือน */}
       <section className="max-w-7xl mx-auto mb-6">
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
           <h2 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -889,7 +901,175 @@ export default function TeamCalendarPage() {
         </section>
       )}
 
-      {/* Modal ลงตารางงาน/เวรใหม่ */}
+      {/* Modal ป๊อบอัพรายละเอียด */}
+      {activeGroupDetail && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-base">
+                <Info className="w-5 h-5 text-blue-600" /> รายละเอียด
+              </h3>
+              <button onClick={() => setActiveGroupDetail(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-xs text-slate-400 block font-medium">วันที่</span>
+                <span className="font-medium text-slate-700">{formatThaiDateShort(activeGroupDetail.date)}</span>
+              </div>
+
+              <div>
+                <span className="text-xs text-slate-400 block mb-1.5 font-medium">ผู้ปฏิบัติหน้าที่</span>
+                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                  {activeGroupDetail.items.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100 text-xs">
+                      <div>
+                        <div className="font-bold text-slate-800">{item.memberName}</div>
+                        <div className="text-[10px] text-slate-500">{item.title}</div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setActiveGroupDetail(null);
+                            handleOpenEdit(item);
+                          }}
+                          className="text-amber-600 hover:text-amber-800 transition p-1"
+                          title="แก้ไข"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteShift(item.id)}
+                          className="text-slate-400 hover:text-rose-600 transition p-1"
+                          title="ลบ"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal แก้ไขข้อมูล (ปรับปรุงให้รองรับทุกประเภทเวร/ภารกิจ) */}
+      {isEditModalOpen && editingShift && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-amber-600" /> แก้ไขข้อมูล
+              </h2>
+              <button onClick={() => setIsEditModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateShift} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">ประเภท</label>
+                <select
+                  value={editingShift.type}
+                  onChange={(e) => setEditingShift({ ...editingShift, type: e.target.value as any })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                >
+                  {/* ตัวเลือกแท็บจิตอาสา */}
+                  <option value="attend">ร่วมงาน</option>
+                  <option value="photo">ช่างภาพ</option>
+                  <option value="leave">การลา</option>
+                  <option value="general">แจ้งงานทั่วไป</option>
+                  {/* ตัวเลือกแท็บเวรประจำวัน */}
+                  <option value="senior_officer">🟡 นายร้อยตำรวจเวรผู้ใหญ่</option>
+                  <option value="admin_officer">🔵 นายร้อยเวรอำนวยการ</option>
+                  <option value="assistant_admin">🟢 ผู้ช่วยนายร้อยเวรอำนวยการ</option>
+                  <option value="admin_nco">🩷 สิบเวร อำนวยการ</option>
+                  <option value="sod_nco">⚪ สิบเวร ศปก.</option>
+                  <option value="duty">🟣 เวรแผนก</option>
+                </select>
+              </div>
+
+              {editingShift.type !== "general" && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">ผู้รับผิดชอบ / กำลังพล</label>
+                  <select
+                    value={editingShift.memberId}
+                    onChange={(e) => setEditingShift({ ...editingShift, memberId: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">วันที่</label>
+                <input
+                  type="date"
+                  value={editingShift.date}
+                  onChange={(e) => setEditingShift({ ...editingShift, date: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาเริ่ม</label>
+                  <input
+                    type="time"
+                    value={editingShift.startTime}
+                    onChange={(e) => setEditingShift({ ...editingShift, startTime: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">เวลาสิ้นสุด</label>
+                  <input
+                    type="time"
+                    value={editingShift.endTime}
+                    onChange={(e) => setEditingShift({ ...editingShift, endTime: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">รายละเอียด / หัวข้อภารกิจ</label>
+                <input
+                  type="text"
+                  value={editingShift.title}
+                  onChange={(e) => setEditingShift({ ...editingShift, title: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-medium transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-medium transition shadow-sm"
+                >
+                  บันทึกการแก้ไข
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal ลงตารางงานใหม่ */}
       {isShiftModalOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100">
