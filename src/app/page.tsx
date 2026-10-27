@@ -225,11 +225,6 @@ export default function TeamCalendarPage() {
     if (targetType === "general") {
       memberId = "general";
       memberName = "แจ้งงานทั่วไป";
-    } else if (targetType === "duty") {
-      // สำหรับเวรประจำวัน สามารถเลือกกำลังพลหรือบันทึกเป็นชื่อกำลังพลได้
-      const member = members.find((m) => m.id === shiftMemberId);
-      memberId = member ? member.id : "duty_group";
-      memberName = member ? member.name : "เวรประจำวัน";
     } else {
       const member = members.find((m) => m.id === shiftMemberId);
       if (!member) return;
@@ -448,7 +443,6 @@ export default function TeamCalendarPage() {
   const totalPhoto = monthShifts.filter((s) => s.type === "photo").length;
   const totalLeave = monthShifts.filter((s) => s.type === "leave").length;
   const totalGeneral = monthShifts.filter((s) => s.type === "general").length;
-  const totalDuty = monthShifts.filter((s) => s.type === "duty").length;
   const totalAllShifts = monthShifts.length;
 
   // สรุปสถิติตารางเวรรายบุคคล
@@ -458,7 +452,7 @@ export default function TeamCalendarPage() {
       id: m.id,
       name: m.name,
       dutyCount: mShifts.length,
-    });
+    };
   });
 
   const memberStats = members.map((m) => {
