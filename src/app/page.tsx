@@ -57,13 +57,12 @@ export default function TeamCalendarPage() {
 
   const [activeTab, setActiveTab] = useState<"volunteer" | "duty">("volunteer");
 
-  // ค่าเริ่มต้นสำรองตอน Build
-  const defaultObj = new Date();
-  const [currentYear, setCurrentYear] = useState<number>(defaultObj.getFullYear());
-  const [currentMonth, setCurrentMonth] = useState<number>(defaultObj.getMonth());
+  // ใช้ค่าเริ่มต้นแบบ Static ป้องกัน Prerender Error
+  const [currentYear, setCurrentYear] = useState<number>(2026);
+  const [currentMonth, setCurrentMonth] = useState<number>(9); // 9 = ตุลาคม
   const [todayFormattedDate, setTodayFormattedDate] = useState<string>("2026-10-29");
 
-  // โหลดวันที่จริงเฉพาะฝั่ง Client เพื่อป้องกัน Prerender Error
+  // โหลดวันที่จริงเฉพาะฝั่ง Client (Browser)
   useEffect(() => {
     const todayObj = new Date();
     setCurrentYear(todayObj.getFullYear());
@@ -98,7 +97,6 @@ export default function TeamCalendarPage() {
   const [shiftTitle, setShiftTitle] = useState("");
   const [shiftType, setShiftType] = useState<any>("attend");
 
-  // อัปเดตค่าเริ่มต้นของ shiftDate เมื่อ todayFormattedDate โหลดเสร็จ
   useEffect(() => {
     if (todayFormattedDate) {
       setShiftDate(todayFormattedDate);
