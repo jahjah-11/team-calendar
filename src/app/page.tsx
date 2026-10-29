@@ -103,6 +103,12 @@ export default function TeamCalendarPage() {
     "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
   ];
 
+  // ฟังก์ชันทำความสะอาดชื่อ ตัดช่องว่างส่วนเกินและอักขระพิเศษออกทั้งหมดเพื่อให้เทียบกันได้แม่นยำ
+  const normalizeName = (name: string) => {
+    if (!name) return "";
+    return name.replace(/\s+/g, "").replace(/\u00A0/g, "").trim();
+  };
+
   const parseExcelDate = (val: any): string | null => {
     if (!val) return null;
     if (typeof val === "number") {
@@ -178,29 +184,23 @@ export default function TeamCalendarPage() {
     }
   };
 
-  // ฟังก์ชันซ่อมแซมและจับคู่รายชื่อเวร
+  // ฟังก์ชันซ่อมแซมและจับคู่รายชื่อเวรเก่า (ใช้ Normalize Name เทียบ)
   const handleRematchShifts = async () => {
     const supabase = getSupabase();
     let updatedCount = 0;
 
-    // ดึงข้อมูลสมาชิกและตารางเวรล่าสุด
     const { data: currentMembers } = await supabase.from("members").select("*");
     const { data: currentShifts } = await supabase.from("shifts").select("*");
 
     if (!currentMembers || !currentShifts) return;
 
     for (const s of currentShifts) {
-      if (s.member_id === "duty_group" || !s.member_id) {
-        const matched = currentMembers.find(m => 
-          m.name.trim() === s.member_name?.trim() || 
-          m.name.includes(s.member_name) || 
-          s.member_name?.includes(m.name)
-        );
+      const cleanShiftName = normalizeName(s.member_name);
+      const matched = currentMembers.find(m => normalizeName(m.name) === cleanShiftName);
 
-        if (matched) {
-          await supabase.from("shifts").update({ member_id: matched.id, member_name: matched.name }).eq("id", s.id);
-          updatedCount++;
-        }
+      if (matched && s.member_id !== matched.id) {
+        await supabase.from("shifts").update({ member_id: matched.id, member_name: matched.name }).eq("id", s.id);
+        updatedCount++;
       }
     }
 
@@ -208,7 +208,7 @@ export default function TeamCalendarPage() {
     fetchData();
   };
 
-  // ฟังก์ชันอัปโหลด Excel ปรับปรุงใหม่ (สร้าง member ให้อัตโนมัติหากไม่มี)
+  // ฟังก์ชันอัปโหลด Excel (ใช้ Normalize Name เทียบเพื่อจับคู่หรือสร้างใหม่)
   const handleDutyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -224,10 +224,9 @@ export default function TeamCalendarPage() {
 
         const supabase = getSupabase();
 
-        // 1. ดึงรายชื่อกำลังพลปัจจุบัน
         const { data: existingMembers } = await supabase.from("members").select("*");
         const memberMap = new Map<string, string>();
-        (existingMembers || []).forEach(m => memberMap.set(m.name.trim(), m.id));
+        (existingMembers || []).forEach(m => memberMap.set(normalizeName(m.name), m.id));
 
         const newShiftsToInsert: any[] = [];
         const newMembersToInsert: any[] = [];
@@ -239,25 +238,25 @@ export default function TeamCalendarPage() {
 
           if (!rawName || !formattedDate || rawName.includes("ชื่อ-นามสกุล")) continue;
 
-          let memberId = memberMap.get(rawName);
+          const cleanExcelName = normalizeName(rawName);
+          let memberId = memberMap.get(cleanExcelName);
 
-          // ถ้ายังไม่มีรายชื่อในตาราง members ให้สร้างขึ้นมาใหม่ทันที
+          let finalMemberName = rawName;
+          const matchedDbMember = (existingMembers || []).find(m => normalizeName(m.name) === cleanExcelName);
+          if (matchedDbMember) {
+            finalMemberName = matchedDbMember.name;
+          }
+
           if (!memberId) {
-            // ลองหาชื่อใกล้เคียง
-            const matchedKey = Array.from(memberMap.keys()).find(k => k.includes(rawName) || rawName.includes(k));
-            if (matchedKey) {
-              memberId = memberMap.get(matchedKey);
-            } else {
-              memberId = Date.now().toString() + Math.random().toString(36).substring(2, 5);
-              memberMap.set(rawName, memberId);
-              newMembersToInsert.push({ id: memberId, name: rawName });
-            }
+            memberId = Date.now().toString() + Math.random().toString(36).substring(2, 5);
+            memberMap.set(cleanExcelName, memberId);
+            newMembersToInsert.push({ id: memberId, name: rawName });
           }
 
           newShiftsToInsert.push({
             id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
             member_id: memberId,
-            member_name: rawName,
+            member_name: finalMemberName,
             date: formattedDate,
             start_time: "08:30",
             end_time: "16:30",
@@ -266,19 +265,17 @@ export default function TeamCalendarPage() {
           });
         }
 
-        // 2. เพิ่มรายชื่อใหม่เข้าตาราง members
         if (newMembersToInsert.length > 0) {
           await supabase.from("members").insert(newMembersToInsert);
         }
 
-        // 3. เพิ่มข้อมูลเวรเข้าตาราง shifts
         if (newShiftsToInsert.length > 0) {
           const { error } = await supabase.from("shifts").insert(newShiftsToInsert);
           if (error) throw error;
-          alert(`นำเข้าตารางเวรสำเร็จ ${newShiftsToInsert.length} รายการ (เพิ่มรายชื่อกำลังพลใหม่ ${newMembersToInsert.length} นาย)!`);
+          alert(`นำเข้าตารางเวรสำเร็จ ${newShiftsToInsert.length} รายการ!`);
           fetchData();
         } else {
-          alert("ไม่พบข้อมูลในไฟล์ Excel หรือรูปแบบคอลัมน์ไม่ถูกต้อง (ต้องมีคอลัมน์ 'ชื่อ-นามสกุล' และ 'วันที่')");
+          alert("ไม่พบข้อมูลในไฟล์ Excel หรือรูปแบบคอลัมน์ไม่ถูกต้อง");
         }
       } catch (err) {
         console.error(err);
@@ -663,14 +660,14 @@ export default function TeamCalendarPage() {
     };
   });
 
-  // กรองตารางเวรตามคน โดยรองรับทั้ง ID และ ชื่อ
+  // กรองตารางเวรตามคน โดยใช้ Normalize Name เทียบกันแบบแม่นยำ
   const selectedMemberObj = members.find((m) => m.id === selectedMember);
   const filteredShifts = selectedMember === "all"
     ? tabFilteredShifts
     : tabFilteredShifts.filter((s) => {
         if (s.type === "general") return true;
         if (s.memberId === selectedMember) return true;
-        if (selectedMemberObj && s.memberName && (s.memberName.includes(selectedMemberObj.name) || selectedMemberObj.name.includes(s.memberName))) return true;
+        if (selectedMemberObj && normalizeName(s.memberName) === normalizeName(selectedMemberObj.name)) return true;
         return false;
       });
 
@@ -745,7 +742,7 @@ export default function TeamCalendarPage() {
           <button
             onClick={handleRematchShifts}
             className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition shadow-sm"
-            title="กดปุ่มนี้เพื่อเชื่อมข้อมูลเก่าเข้ากับรายชื่อกำลังพล"
+            title="กดปุ่มนี้เพื่อซ่อมแซมและจับคู่รายชื่อเก่า"
           >
             <RefreshCw className="w-4 h-4" /> ซ่อมแซมจับคู่รายชื่อเก่า
           </button>
