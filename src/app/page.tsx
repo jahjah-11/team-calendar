@@ -55,22 +55,23 @@ export default function TeamCalendarPage() {
   const [selectedMember, setSelectedMember] = useState<string>("all");
   const [shifts, setShifts] = useState<ShiftItem[]>([]);
 
-  // State สำหรับสลับแท็บระหว่าง "ภารกิจจิตอาสา" และ "ตารางเวรประจำวัน"
   const [activeTab, setActiveTab] = useState<"volunteer" | "duty">("volunteer");
 
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(9); // 0-indexed (9 = ตุลาคม)
+  const todayObj = new Date();
+  const todayYear = todayObj.getFullYear();
+  const todayMonth = todayObj.getMonth();
+  const todayFormattedDate = todayObj.toISOString().split("T")[0];
 
-  // Modals & UI States
+  const [currentYear, setCurrentYear] = useState(todayYear);
+  const [currentMonth, setCurrentMonth] = useState(todayMonth);
+
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
 
-  // States สำหรับแก้ไขภารกิจ
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<ShiftItem | null>(null);
 
-  // State สำหรับยุบ/ขยาย รายการแต่ละเดือน
   const [expandedMonths, setExpandedMonths] = useState<{ [key: string]: boolean }>({});
 
   const [activeGroupDetail, setActiveGroupDetail] = useState<{
@@ -85,19 +86,17 @@ export default function TeamCalendarPage() {
   const [showStats, setShowStats] = useState(true);
 
   const [shiftMemberId, setShiftMemberId] = useState("");
-  const [shiftDate, setShiftDate] = useState("2026-10-27");
+  const [shiftDate, setShiftDate] = useState(todayFormattedDate);
   const [shiftStartTime, setShiftStartTime] = useState("08:30");
   const [shiftEndTime, setShiftEndTime] = useState("16:30");
   const [shiftTitle, setShiftTitle] = useState("");
   const [shiftType, setShiftType] = useState<any>("attend");
 
-  // รายชื่อเดือนภาษาไทย
   const monthNames = [
     "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
     "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
   ];
 
-  // ฟังก์ชันแปลงวันที่จาก Excel
   const parseExcelDate = (val: any): string | null => {
     if (!val) return null;
     if (typeof val === "number") {
@@ -133,7 +132,7 @@ export default function TeamCalendarPage() {
   }, []);
 
   useEffect(() => {
-    const validMonth = (currentMonth ?? 9) + 1;
+    const validMonth = (currentMonth ?? todayMonth) + 1;
     const currentMonthKey = `${currentYear}-${validMonth.toString().padStart(2, "0")}`;
     setExpandedMonths((prev) => ({
       ...prev,
@@ -160,7 +159,7 @@ export default function TeamCalendarPage() {
           id: s.id,
           memberId: s.member_id || "general",
           memberName: s.member_name || "ประกาศทั่วไป",
-          date: s.date || "2026-10-27",
+          date: s.date || todayFormattedDate,
           startTime: s.start_time || "",
           endTime: s.end_time || "",
           title: s.title || "",
@@ -174,7 +173,7 @@ export default function TeamCalendarPage() {
   };
 
   const getDaysInMonth = (year: number, month: number) => {
-    const safeMonth = month ?? 9;
+    const safeMonth = month ?? todayMonth;
     const firstDayIndex = new Date(year, safeMonth, 1).getDay();
     const totalDays = new Date(year, safeMonth + 1, 0).getDate();
     const days = [];
@@ -315,7 +314,6 @@ export default function TeamCalendarPage() {
     setIsShiftModalOpen(false);
   };
 
-  // นำเข้า Excel สำหรับตารางเวร (เวรแผนก)
   const handleDutyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -540,7 +538,6 @@ export default function TeamCalendarPage() {
     return parts[0] || fullName;
   };
 
-  // กรองข้อมูลตามแท็บที่เลือก
   const tabFilteredShifts = shifts.filter((s) => {
     if (activeTab === "duty") {
       return s.type !== "attend" && s.type !== "photo" && s.type !== "leave" && s.type !== "general";
@@ -549,7 +546,7 @@ export default function TeamCalendarPage() {
     }
   });
 
-  const safeMonthNum = (currentMonth ?? 9) + 1;
+  const safeMonthNum = (currentMonth ?? todayMonth) + 1;
   const currentMonthPrefix = `${currentYear}-${safeMonthNum.toString().padStart(2, "0")}`;
   const monthShifts = tabFilteredShifts.filter((s) => s.date && s.date.startsWith(currentMonthPrefix));
 
@@ -574,8 +571,6 @@ export default function TeamCalendarPage() {
   const filteredShifts =
     selectedMember === "all" ? tabFilteredShifts : tabFilteredShifts.filter((s) => s.memberId === selectedMember || s.type === "general");
 
-  const todayDateStr = "2026-10-27";
-
   const sortedAllShifts = [...filteredShifts].sort((a, b) => {
     if (a.date !== b.date) {
       return (a.date || "").localeCompare(b.date || "");
@@ -583,7 +578,7 @@ export default function TeamCalendarPage() {
     return (a.startTime || "").localeCompare(b.startTime || "");
   });
 
-  const upcomingShifts = sortedAllShifts.filter((s) => s.date >= todayDateStr);
+  const upcomingShifts = sortedAllShifts.filter((s) => s.date >= todayFormattedDate);
 
   const shiftsByMonth: { [monthKey: string]: { [dateStr: string]: ShiftItem[] } } = {};
   upcomingShifts.forEach((s) => {
@@ -598,7 +593,6 @@ export default function TeamCalendarPage() {
     shiftsByMonth[monthKey][s.date].push(s);
   });
 
-  // สีและการแสดงผลตามประเภทเวร/ภารกิจ
   const getTaskStyle = (type: string) => {
     switch (type) {
       case "attend": return "bg-sky-500/10 border-sky-300 text-sky-900";
@@ -631,11 +625,10 @@ export default function TeamCalendarPage() {
     }
   };
 
-  const displayMonthName = monthNames[currentMonth ?? 9] || "ตุลาคม";
+  const displayMonthName = monthNames[currentMonth ?? todayMonth] || "ตุลาคม";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6">
-      {/* Header */}
       <header className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -684,7 +677,6 @@ export default function TeamCalendarPage() {
         </div>
       </header>
 
-      {/* แท็บสลับหมวดหมู่ (Tabs) */}
       <div className="max-w-7xl mx-auto mb-6 flex gap-2 border-b border-slate-200 pb-3 items-center justify-between flex-wrap">
         <div className="flex gap-2">
           <button
@@ -714,7 +706,6 @@ export default function TeamCalendarPage() {
         )}
       </div>
 
-      {/* Calendar Main */}
       <main className="max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-6">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
@@ -753,12 +744,12 @@ export default function TeamCalendarPage() {
             }
 
             const formattedDay = day < 10 ? `0${day}` : `${day}`;
-            const mNum = (currentMonth ?? 9) + 1;
+            const mNum = (currentMonth ?? todayMonth) + 1;
             const formattedMonth = mNum < 10 ? `0${mNum}` : `${mNum}`;
             const dateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
 
             const dayShifts = filteredShifts.filter((s) => s.date === dateStr);
-            const isToday = dateStr === todayDateStr;
+            const isToday = dateStr === todayFormattedDate;
 
             return (
               <div key={day} className={`p-1.5 md:p-2 min-h-[110px] md:min-h-[140px] transition ${isToday ? "bg-blue-50/40" : "bg-white"}`}>
@@ -805,7 +796,6 @@ export default function TeamCalendarPage() {
         </div>
       </main>
 
-      {/* รายการรายเดือน */}
       <section className="max-w-7xl mx-auto mb-6">
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
           <h2 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -873,7 +863,6 @@ export default function TeamCalendarPage() {
         </div>
       </section>
 
-      {/* สรุปสถิติประจำเดือน (แสดงเฉพาะหน้าภารกิจจิตอาสาเท่านั้น หน้าตารางเวรจะไม่แสดงตามต้องการ) */}
       {activeTab === "volunteer" && showStats && (
         <section className="max-w-7xl mx-auto space-y-4">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
@@ -930,7 +919,6 @@ export default function TeamCalendarPage() {
         </section>
       )}
 
-      {/* Modal ป๊อบอัพรายละเอียด */}
       {activeGroupDetail && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100">
@@ -986,7 +974,6 @@ export default function TeamCalendarPage() {
         </div>
       )}
 
-      {/* Modal แก้ไขข้อมูล */}
       {isEditModalOpen && editingShift && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100">
@@ -1096,7 +1083,6 @@ export default function TeamCalendarPage() {
         </div>
       )}
 
-      {/* Modal ลงตารางงานใหม่ */}
       {isShiftModalOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100">
@@ -1209,7 +1195,6 @@ export default function TeamCalendarPage() {
         </div>
       )}
 
-      {/* Modal จัดการกำลังพล */}
       {isMemberModalOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 max-h-[85vh] flex flex-col">
