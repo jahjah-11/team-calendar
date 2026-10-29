@@ -11,20 +11,16 @@ import {
   Users,
   Trash2,
   X,
-  Camera,
-  Handshake,
-  LogOut,
-  Info,
   Download,
   BarChart3,
   ListOrdered,
   Edit3,
   ChevronDown,
   ChevronUp,
-  Megaphone,
   ShieldAlert,
   FileSpreadsheet,
   RefreshCw,
+  Info,
 } from "lucide-react";
 
 // === ตั้งค่าการเชื่อมต่อ Supabase ของ กก.ตชด.๒๓ ===
@@ -59,7 +55,7 @@ export default function TeamCalendarPage() {
   const [activeTab, setActiveTab] = useState<"volunteer" | "duty">("volunteer");
 
   const [currentYear, setCurrentYear] = useState<number>(2026);
-  const [currentMonth, setCurrentMonth] = useState<number>(9); // 9 = ตุลาคม
+  const [currentMonth, setCurrentMonth] = useState<number>(9);
   const [todayFormattedDate, setTodayFormattedDate] = useState<string>("2026-10-29");
 
   useEffect(() => {
@@ -182,34 +178,115 @@ export default function TeamCalendarPage() {
     }
   };
 
+  // ฟังก์ชันซ่อมแซมและจับคู่รายชื่อเวร
   const handleRematchShifts = async () => {
-    if (members.length === 0) {
-      alert("ยังไม่มีรายชื่อกำลังพลในระบบ");
-      return;
-    }
-
     const supabase = getSupabase();
     let updatedCount = 0;
 
-    const updatedShifts = [...shifts];
-    for (const s of updatedShifts) {
-      if (s.type === "duty" || s.type === "senior_officer" || s.type === "admin_officer" || s.type === "assistant_admin" || s.type === "admin_nco" || s.type === "sod_nco") {
-        const matched = members.find((m) => m.name.includes(s.memberName) || s.memberName.includes(m.name) || m.name.split(" ").slice(-1)[0] === s.memberName.split(" ").slice(-1)[0]);
-        if (matched && s.memberId !== matched.id) {
-          s.memberId = matched.id;
-          s.memberName = matched.name;
-          updatedCount++;
+    // ดึงข้อมูลสมาชิกและตารางเวรล่าสุด
+    const { data: currentMembers } = await supabase.from("members").select("*");
+    const { data: currentShifts } = await supabase.from("shifts").select("*");
 
-          await supabase
-            .from("shifts")
-            .update({ member_id: matched.id, member_name: matched.name })
-            .eq("id", s.id);
+    if (!currentMembers || !currentShifts) return;
+
+    for (const s of currentShifts) {
+      if (s.member_id === "duty_group" || !s.member_id) {
+        const matched = currentMembers.find(m => 
+          m.name.trim() === s.member_name?.trim() || 
+          m.name.includes(s.member_name) || 
+          s.member_name?.includes(m.name)
+        );
+
+        if (matched) {
+          await supabase.from("shifts").update({ member_id: matched.id, member_name: matched.name }).eq("id", s.id);
+          updatedCount++;
         }
       }
     }
 
-    setShifts(updatedShifts);
-    alert(`ซ่อมแซมและจับคู่ชื่อสำเร็จทั้งหมด ${updatedCount} รายการ! ตอนนี้สามารถกดค้นหารายบุคคลได้แล้วครับ`);
+    alert(`จับคู่รายชื่อสำเร็จ ${updatedCount} รายการ! ตอนนี้ลองกดเลือกดูรายบุคคลได้เลยครับ`);
+    fetchData();
+  };
+
+  // ฟังก์ชันอัปโหลด Excel ปรับปรุงใหม่ (สร้าง member ให้อัตโนมัติหากไม่มี)
+  const handleDutyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsName = wb.SheetNames[0];
+        const ws = wb.Sheets[wsName];
+        const data: any[] = XLSX.utils.sheet_to_json(ws);
+
+        const supabase = getSupabase();
+
+        // 1. ดึงรายชื่อกำลังพลปัจจุบัน
+        const { data: existingMembers } = await supabase.from("members").select("*");
+        const memberMap = new Map<string, string>();
+        (existingMembers || []).forEach(m => memberMap.set(m.name.trim(), m.id));
+
+        const newShiftsToInsert: any[] = [];
+        const newMembersToInsert: any[] = [];
+
+        for (const row of data) {
+          const rawName = String(row["ชื่อ-นามสกุล"] || row["ชื่อ"] || "").trim();
+          const rawDate = row["วันที่"] || row["date"];
+          const formattedDate = parseExcelDate(rawDate);
+
+          if (!rawName || !formattedDate || rawName.includes("ชื่อ-นามสกุล")) continue;
+
+          let memberId = memberMap.get(rawName);
+
+          // ถ้ายังไม่มีรายชื่อในตาราง members ให้สร้างขึ้นมาใหม่ทันที
+          if (!memberId) {
+            // ลองหาชื่อใกล้เคียง
+            const matchedKey = Array.from(memberMap.keys()).find(k => k.includes(rawName) || rawName.includes(k));
+            if (matchedKey) {
+              memberId = memberMap.get(matchedKey);
+            } else {
+              memberId = Date.now().toString() + Math.random().toString(36).substring(2, 5);
+              memberMap.set(rawName, memberId);
+              newMembersToInsert.push({ id: memberId, name: rawName });
+            }
+          }
+
+          newShiftsToInsert.push({
+            id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
+            member_id: memberId,
+            member_name: rawName,
+            date: formattedDate,
+            start_time: "08:30",
+            end_time: "16:30",
+            title: "เวรแผนก",
+            type: "duty",
+          });
+        }
+
+        // 2. เพิ่มรายชื่อใหม่เข้าตาราง members
+        if (newMembersToInsert.length > 0) {
+          await supabase.from("members").insert(newMembersToInsert);
+        }
+
+        // 3. เพิ่มข้อมูลเวรเข้าตาราง shifts
+        if (newShiftsToInsert.length > 0) {
+          const { error } = await supabase.from("shifts").insert(newShiftsToInsert);
+          if (error) throw error;
+          alert(`นำเข้าตารางเวรสำเร็จ ${newShiftsToInsert.length} รายการ (เพิ่มรายชื่อกำลังพลใหม่ ${newMembersToInsert.length} นาย)!`);
+          fetchData();
+        } else {
+          alert("ไม่พบข้อมูลในไฟล์ Excel หรือรูปแบบคอลัมน์ไม่ถูกต้อง (ต้องมีคอลัมน์ 'ชื่อ-นามสกุล' และ 'วันที่')");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel");
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
   };
 
   const getDaysInMonth = (year: number, month: number) => {
@@ -352,67 +429,6 @@ export default function TeamCalendarPage() {
 
     setShiftTitle("");
     setIsShiftModalOpen(false);
-  };
-
-  const handleDutyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: "binary" });
-        const wsName = wb.SheetNames[0];
-        const ws = wb.Sheets[wsName];
-        const data: any[] = XLSX.utils.sheet_to_json(ws);
-
-        const supabase = getSupabase();
-        const newShiftsToInsert: any[] = [];
-
-        data.forEach((row) => {
-          const rowName = String(row["ชื่อ-นามสกุล"] || row["ชื่อ"] || "").trim();
-          const rawDate = row["วันที่"] || row["date"];
-          const formattedDate = parseExcelDate(rawDate);
-
-          if (!rowName || !formattedDate || rowName.includes("ชื่อ-นามสกุล")) return;
-
-          const matchedMember = members.find((m) => 
-            m.name.includes(rowName) || 
-            rowName.includes(m.name) || 
-            m.name.split(" ").slice(-1)[0] === rowName.split(" ").slice(-1)[0]
-          );
-
-          const memberId = matchedMember ? matchedMember.id : "duty_group";
-          const finalMemberName = matchedMember ? matchedMember.name : rowName;
-
-          newShiftsToInsert.push({
-            id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
-            member_id: memberId,
-            member_name: finalMemberName,
-            date: formattedDate,
-            start_time: "08:30",
-            end_time: "16:30",
-            title: "เวรแผนก",
-            type: "duty",
-          });
-        });
-
-        if (newShiftsToInsert.length > 0) {
-          const { error } = await supabase.from("shifts").insert(newShiftsToInsert);
-          if (error) throw error;
-          alert(`นำเข้าตารางเวรสำเร็จทั้งหมด ${newShiftsToInsert.length} รายการ!`);
-          fetchData();
-        } else {
-          alert("ไม่พบข้อมูลในไฟล์ Excel หรือรูปแบบหัวคอลัมน์ไม่ถูกต้อง");
-        }
-      } catch (err) {
-        console.error(err);
-        alert("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel");
-      }
-    };
-    reader.readAsBinaryString(file);
-    e.target.value = "";
   };
 
   const handleOpenEdit = (shift: ShiftItem) => {
@@ -647,8 +663,16 @@ export default function TeamCalendarPage() {
     };
   });
 
-  const filteredShifts =
-    selectedMember === "all" ? tabFilteredShifts : tabFilteredShifts.filter((s) => s.memberId === selectedMember || s.type === "general" || s.memberName.includes(members.find(m => m.id === selectedMember)?.name || ""));
+  // กรองตารางเวรตามคน โดยรองรับทั้ง ID และ ชื่อ
+  const selectedMemberObj = members.find((m) => m.id === selectedMember);
+  const filteredShifts = selectedMember === "all"
+    ? tabFilteredShifts
+    : tabFilteredShifts.filter((s) => {
+        if (s.type === "general") return true;
+        if (s.memberId === selectedMember) return true;
+        if (selectedMemberObj && s.memberName && (s.memberName.includes(selectedMemberObj.name) || selectedMemberObj.name.includes(s.memberName))) return true;
+        return false;
+      });
 
   const sortedAllShifts = [...filteredShifts].sort((a, b) => {
     if (a.date !== b.date) {
@@ -721,9 +745,9 @@ export default function TeamCalendarPage() {
           <button
             onClick={handleRematchShifts}
             className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition shadow-sm"
-            title="กดปุ่มนี้เพื่อให้ระบบจับคู่ชื่อเวรเก่าเข้ากับรายชื่อกำลังพลโดยอัตโนมัติ"
+            title="กดปุ่มนี้เพื่อเชื่อมข้อมูลเก่าเข้ากับรายชื่อกำลังพล"
           >
-            <RefreshCw className="w-4 h-4" /> จับคู่ชื่อเวรเก่า
+            <RefreshCw className="w-4 h-4" /> ซ่อมแซมจับคู่รายชื่อเก่า
           </button>
 
           {activeTab === "volunteer" && (
