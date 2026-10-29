@@ -323,6 +323,7 @@ export default function TeamCalendarPage() {
     setIsShiftModalOpen(false);
   };
 
+  // ปรับปรุงฟังก์ชันนำเข้า Excel ให้จับคู่ชื่อกับระบบกำลังพลอัตโนมัติ
   const handleDutyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -346,13 +347,15 @@ export default function TeamCalendarPage() {
 
           if (!rowName || !formattedDate || String(rowName).includes("ชื่อ-นามสกุล")) return;
 
-          const matchedMember = members.find((m) => m.name.includes(rowName));
+          // ค้นหาว่าชื่อใน Excel ตรงกับรายชื่อกำลังพลในระบบหรือไม่ (เทียบจากชื่อที่มีใน members)
+          const matchedMember = members.find((m) => m.name.includes(rowName) || rowName.includes(m.name));
           const memberId = matchedMember ? matchedMember.id : "duty_group";
+          const finalMemberName = matchedMember ? matchedMember.name : rowName;
 
           newShiftsToInsert.push({
             id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
             member_id: memberId,
-            member_name: rowName,
+            member_name: finalMemberName,
             date: formattedDate,
             start_time: "08:30",
             end_time: "16:30",
@@ -547,7 +550,6 @@ export default function TeamCalendarPage() {
     return parts[0] || fullName;
   };
 
-  // จัดกลุ่มงานที่ตรงกับชื่อภารกิจ ประเภทงาน และเวลาเดียวกัน
   const groupShiftsByTitle = (shiftItems: ShiftItem[]) => {
     const groupedMap = new Map<string, {
       title: string;
