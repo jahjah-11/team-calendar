@@ -57,12 +57,10 @@ export default function TeamCalendarPage() {
 
   const [activeTab, setActiveTab] = useState<"volunteer" | "duty">("volunteer");
 
-  // ใช้ค่าเริ่มต้นแบบ Static ป้องกัน Prerender Error
   const [currentYear, setCurrentYear] = useState<number>(2026);
   const [currentMonth, setCurrentMonth] = useState<number>(9); // 9 = ตุลาคม
   const [todayFormattedDate, setTodayFormattedDate] = useState<string>("2026-10-29");
 
-  // โหลดวันที่จริงเฉพาะฝั่ง Client (Browser)
   useEffect(() => {
     const todayObj = new Date();
     setCurrentYear(todayObj.getFullYear());
@@ -549,6 +547,40 @@ export default function TeamCalendarPage() {
     return parts[0] || fullName;
   };
 
+  // จัดกลุ่มงานที่ตรงกับชื่อภารกิจ ประเภทงาน และเวลาเดียวกัน
+  const groupShiftsByTitle = (shiftItems: ShiftItem[]) => {
+    const groupedMap = new Map<string, {
+      title: string;
+      type: string;
+      startTime: string;
+      endTime: string;
+      items: ShiftItem[];
+      names: string[];
+    }>();
+
+    shiftItems.forEach((item) => {
+      const key = `${item.title.trim()}_${item.type}_${item.startTime}_${item.endTime}`;
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, {
+          title: item.title,
+          type: item.type,
+          startTime: item.startTime,
+          endTime: item.endTime,
+          items: [],
+          names: [],
+        });
+      }
+      const group = groupedMap.get(key)!;
+      group.items.push(item);
+      const firstName = getFirstNameOnly(item.memberName, item.type);
+      if (firstName && !group.names.includes(firstName)) {
+        group.names.push(firstName);
+      }
+    });
+
+    return Array.from(groupedMap.values());
+  };
+
   const tabFilteredShifts = shifts.filter((s) => {
     if (activeTab === "duty") {
       return s.type !== "attend" && s.type !== "photo" && s.type !== "leave" && s.type !== "general";
@@ -760,6 +792,7 @@ export default function TeamCalendarPage() {
             const dateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
 
             const dayShifts = filteredShifts.filter((s) => s.date === dateStr);
+            const groupedDayShifts = groupShiftsByTitle(dayShifts);
             const isToday = dateStr === todayFormattedDate;
 
             return (
@@ -771,32 +804,32 @@ export default function TeamCalendarPage() {
                 </div>
 
                 <div className="space-y-1 overflow-y-auto max-h-[110px]">
-                  {dayShifts.map((item, gIdx) => (
+                  {groupedDayShifts.map((group, gIdx) => (
                     <div
                       key={gIdx}
                       onClick={() =>
                         setActiveGroupDetail({
                           date: dateStr,
-                          title: item.title,
-                          type: item.type,
-                          startTime: item.startTime,
-                          endTime: item.endTime,
-                          items: [item],
+                          title: group.title,
+                          type: group.type,
+                          startTime: group.startTime,
+                          endTime: group.endTime,
+                          items: group.items,
                         })
                       }
-                      className={`text-[11px] p-1.5 rounded-md border cursor-pointer transition ${getTaskStyle(item.type)}`}
+                      className={`text-[11px] p-1.5 rounded-md border cursor-pointer transition ${getTaskStyle(group.type)}`}
                     >
                       <div className="flex items-center justify-between gap-1 mb-0.5">
-                        {getTaskBadge(item.type)}
-                        {item.type !== "general" && item.startTime && (
-                          <span className="text-[9px] opacity-75">{formatThaiTime(item.startTime)}</span>
+                        {getTaskBadge(group.type)}
+                        {group.type !== "general" && group.startTime && (
+                          <span className="text-[9px] opacity-75">{formatThaiTime(group.startTime)}</span>
                         )}
                       </div>
                       <div className="font-bold truncate leading-tight">
-                        {item.type === "general" ? item.title : `${getFirstNameOnly(item.memberName, item.type)}`}
+                        {group.type === "general" ? group.title : group.names.join(", ")}
                       </div>
-                      {activeTab === "volunteer" && item.type !== "general" && (
-                        <div className="text-[10px] opacity-90 truncate">{item.title}</div>
+                      {activeTab === "volunteer" && group.type !== "general" && (
+                        <div className="text-[10px] opacity-90 truncate">{group.title}</div>
                       )}
                     </div>
                   ))}
@@ -949,13 +982,17 @@ export default function TeamCalendarPage() {
               </div>
 
               <div>
-                <span className="text-xs text-slate-400 block mb-1.5 font-medium">ผู้ปฏิบัติหน้าที่</span>
+                <span className="text-xs text-slate-400 block font-medium">หัวข้อภารกิจ</span>
+                <span className="font-semibold text-slate-900">{activeGroupDetail.title}</span>
+              </div>
+
+              <div>
+                <span className="text-xs text-slate-400 block mb-1.5 font-medium">ผู้ปฏิบัติหน้าที่ ({activeGroupDetail.items.length} นาย)</span>
                 <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
                   {activeGroupDetail.items.map((item) => (
                     <div key={item.id} className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100 text-xs">
                       <div>
                         <div className="font-bold text-slate-800">{item.memberName}</div>
-                        <div className="text-[10px] text-slate-500">{item.title}</div>
                       </div>
                       <div className="flex items-center gap-1">
                         <button
