@@ -57,13 +57,19 @@ export default function TeamCalendarPage() {
 
   const [activeTab, setActiveTab] = useState<"volunteer" | "duty">("volunteer");
 
-  const todayObj = new Date();
-  const todayYear = todayObj.getFullYear();
-  const todayMonth = todayObj.getMonth();
-  const todayFormattedDate = todayObj.toISOString().split("T")[0];
+  // ค่าเริ่มต้นสำรองตอน Build
+  const defaultObj = new Date();
+  const [currentYear, setCurrentYear] = useState<number>(defaultObj.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(defaultObj.getMonth());
+  const [todayFormattedDate, setTodayFormattedDate] = useState<string>("2026-10-29");
 
-  const [currentYear, setCurrentYear] = useState(todayYear);
-  const [currentMonth, setCurrentMonth] = useState(todayMonth);
+  // โหลดวันที่จริงเฉพาะฝั่ง Client เพื่อป้องกัน Prerender Error
+  useEffect(() => {
+    const todayObj = new Date();
+    setCurrentYear(todayObj.getFullYear());
+    setCurrentMonth(todayObj.getMonth());
+    setTodayFormattedDate(todayObj.toISOString().split("T")[0]);
+  }, []);
 
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
@@ -86,11 +92,18 @@ export default function TeamCalendarPage() {
   const [showStats, setShowStats] = useState(true);
 
   const [shiftMemberId, setShiftMemberId] = useState("");
-  const [shiftDate, setShiftDate] = useState(todayFormattedDate);
+  const [shiftDate, setShiftDate] = useState("2026-10-29");
   const [shiftStartTime, setShiftStartTime] = useState("08:30");
   const [shiftEndTime, setShiftEndTime] = useState("16:30");
   const [shiftTitle, setShiftTitle] = useState("");
   const [shiftType, setShiftType] = useState<any>("attend");
+
+  // อัปเดตค่าเริ่มต้นของ shiftDate เมื่อ todayFormattedDate โหลดเสร็จ
+  useEffect(() => {
+    if (todayFormattedDate) {
+      setShiftDate(todayFormattedDate);
+    }
+  }, [todayFormattedDate]);
 
   const monthNames = [
     "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
@@ -132,7 +145,7 @@ export default function TeamCalendarPage() {
   }, []);
 
   useEffect(() => {
-    const validMonth = (currentMonth ?? todayMonth) + 1;
+    const validMonth = (currentMonth ?? 9) + 1;
     const currentMonthKey = `${currentYear}-${validMonth.toString().padStart(2, "0")}`;
     setExpandedMonths((prev) => ({
       ...prev,
@@ -159,7 +172,7 @@ export default function TeamCalendarPage() {
           id: s.id,
           memberId: s.member_id || "general",
           memberName: s.member_name || "ประกาศทั่วไป",
-          date: s.date || todayFormattedDate,
+          date: s.date || "2026-10-29",
           startTime: s.start_time || "",
           endTime: s.end_time || "",
           title: s.title || "",
@@ -173,7 +186,7 @@ export default function TeamCalendarPage() {
   };
 
   const getDaysInMonth = (year: number, month: number) => {
-    const safeMonth = month ?? todayMonth;
+    const safeMonth = month ?? 9;
     const firstDayIndex = new Date(year, safeMonth, 1).getDay();
     const totalDays = new Date(year, safeMonth + 1, 0).getDate();
     const days = [];
@@ -546,7 +559,7 @@ export default function TeamCalendarPage() {
     }
   });
 
-  const safeMonthNum = (currentMonth ?? todayMonth) + 1;
+  const safeMonthNum = (currentMonth ?? 9) + 1;
   const currentMonthPrefix = `${currentYear}-${safeMonthNum.toString().padStart(2, "0")}`;
   const monthShifts = tabFilteredShifts.filter((s) => s.date && s.date.startsWith(currentMonthPrefix));
 
@@ -625,7 +638,7 @@ export default function TeamCalendarPage() {
     }
   };
 
-  const displayMonthName = monthNames[currentMonth ?? todayMonth] || "ตุลาคม";
+  const displayMonthName = monthNames[currentMonth ?? 9] || "ตุลาคม";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6">
@@ -744,7 +757,7 @@ export default function TeamCalendarPage() {
             }
 
             const formattedDay = day < 10 ? `0${day}` : `${day}`;
-            const mNum = (currentMonth ?? todayMonth) + 1;
+            const mNum = (currentMonth ?? 9) + 1;
             const formattedMonth = mNum < 10 ? `0${mNum}` : `${mNum}`;
             const dateStr = `${currentYear}-${formattedMonth}-${formattedDay}`;
 
