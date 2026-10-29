@@ -182,7 +182,6 @@ export default function TeamCalendarPage() {
     }
   };
 
-  // ฟังก์ชันพิเศษ: ซ่อมแซมและจับคู่ชื่อเวรเก่าในฐานข้อมูลให้ตรงกับรายชื่อกำลังพลปัจจุบัน
   const handleRematchShifts = async () => {
     if (members.length === 0) {
       alert("ยังไม่มีรายชื่อกำลังพลในระบบ");
@@ -195,7 +194,6 @@ export default function TeamCalendarPage() {
     const updatedShifts = [...shifts];
     for (const s of updatedShifts) {
       if (s.type === "duty" || s.type === "senior_officer" || s.type === "admin_officer" || s.type === "assistant_admin" || s.type === "admin_nco" || s.type === "sod_nco") {
-        // ค้นหาว่าชื่อใน shift ตรงกับสมาชิกคนไหนในระบบบ้าง
         const matched = members.find((m) => m.name.includes(s.memberName) || s.memberName.includes(m.name) || m.name.split(" ").slice(-1)[0] === s.memberName.split(" ").slice(-1)[0]);
         if (matched && s.memberId !== matched.id) {
           s.memberId = matched.id;
@@ -379,7 +377,6 @@ export default function TeamCalendarPage() {
 
           if (!rowName || !formattedDate || rowName.includes("ชื่อ-นามสกุล")) return;
 
-          // ค้นหาจับคู่ชื่อแบบยืดหยุ่น (เช็คทั้งชื่อเต็ม หรือ นามสกุล)
           const matchedMember = members.find((m) => 
             m.name.includes(rowName) || 
             rowName.includes(m.name) || 
@@ -1307,7 +1304,7 @@ export default function TeamCalendarPage() {
                 type="text"
                 placeholder="ยศ และ ชื่อ-นามสกุล"
                 value={newMemberName}
-                onChange={(e) => setNewManagerName ? setNewMemberName(e.target.value) : null}
+                onChange={(e) => setNewMemberName(e.target.value)}
                 className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition shrink-0">
