@@ -24,6 +24,7 @@ import {
   Megaphone,
   ShieldAlert,
   FileSpreadsheet,
+  RefreshCw,
 } from "lucide-react";
 
 // === ตั้งค่าการเชื่อมต่อ Supabase ของ กก.ตชด.๒๓ ===
@@ -181,6 +182,38 @@ export default function TeamCalendarPage() {
     }
   };
 
+  // ฟังก์ชันพิเศษ: ซ่อมแซมและจับคู่ชื่อเวรเก่าในฐานข้อมูลให้ตรงกับรายชื่อกำลังพลปัจจุบัน
+  const handleRematchShifts = async () => {
+    if (members.length === 0) {
+      alert("ยังไม่มีรายชื่อกำลังพลในระบบ");
+      return;
+    }
+
+    const supabase = getSupabase();
+    let updatedCount = 0;
+
+    const updatedShifts = [...shifts];
+    for (const s of updatedShifts) {
+      if (s.type === "duty" || s.type === "senior_officer" || s.type === "admin_officer" || s.type === "assistant_admin" || s.type === "admin_nco" || s.type === "sod_nco") {
+        // ค้นหาว่าชื่อใน shift ตรงกับสมาชิกคนไหนในระบบบ้าง
+        const matched = members.find((m) => m.name.includes(s.memberName) || s.memberName.includes(m.name) || m.name.split(" ").slice(-1)[0] === s.memberName.split(" ").slice(-1)[0]);
+        if (matched && s.memberId !== matched.id) {
+          s.memberId = matched.id;
+          s.memberName = matched.name;
+          updatedCount++;
+
+          await supabase
+            .from("shifts")
+            .update({ member_id: matched.id, member_name: matched.name })
+            .eq("id", s.id);
+        }
+      }
+    }
+
+    setShifts(updatedShifts);
+    alert(`ซ่อมแซมและจับคู่ชื่อสำเร็จทั้งหมด ${updatedCount} รายการ! ตอนนี้สามารถกดค้นหารายบุคคลได้แล้วครับ`);
+  };
+
   const getDaysInMonth = (year: number, month: number) => {
     const safeMonth = month ?? 9;
     const firstDayIndex = new Date(year, safeMonth, 1).getDay();
@@ -323,7 +356,6 @@ export default function TeamCalendarPage() {
     setIsShiftModalOpen(false);
   };
 
-  // ปรับปรุงฟังก์ชันนำเข้า Excel ให้จับคู่ชื่อกับระบบกำลังพลอัตโนมัติ
   const handleDutyFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -341,14 +373,19 @@ export default function TeamCalendarPage() {
         const newShiftsToInsert: any[] = [];
 
         data.forEach((row) => {
-          const rowName = row["ชื่อ-นามสกุล"] || row["ชื่อ"] || "";
+          const rowName = String(row["ชื่อ-นามสกุล"] || row["ชื่อ"] || "").trim();
           const rawDate = row["วันที่"] || row["date"];
           const formattedDate = parseExcelDate(rawDate);
 
-          if (!rowName || !formattedDate || String(rowName).includes("ชื่อ-นามสกุล")) return;
+          if (!rowName || !formattedDate || rowName.includes("ชื่อ-นามสกุล")) return;
 
-          // ค้นหาว่าชื่อใน Excel ตรงกับรายชื่อกำลังพลในระบบหรือไม่ (เทียบจากชื่อที่มีใน members)
-          const matchedMember = members.find((m) => m.name.includes(rowName) || rowName.includes(m.name));
+          // ค้นหาจับคู่ชื่อแบบยืดหยุ่น (เช็คทั้งชื่อเต็ม หรือ นามสกุล)
+          const matchedMember = members.find((m) => 
+            m.name.includes(rowName) || 
+            rowName.includes(m.name) || 
+            m.name.split(" ").slice(-1)[0] === rowName.split(" ").slice(-1)[0]
+          );
+
           const memberId = matchedMember ? matchedMember.id : "duty_group";
           const finalMemberName = matchedMember ? matchedMember.name : rowName;
 
@@ -367,14 +404,14 @@ export default function TeamCalendarPage() {
         if (newShiftsToInsert.length > 0) {
           const { error } = await supabase.from("shifts").insert(newShiftsToInsert);
           if (error) throw error;
-          alert(`นำเข้าตารางเวร (เวรแผนก) สำเร็จทั้งหมด ${newShiftsToInsert.length} รายการ!`);
+          alert(`นำเข้าตารางเวรสำเร็จทั้งหมด ${newShiftsToInsert.length} รายการ!`);
           fetchData();
         } else {
-          alert("ไม่พบข้อมูลในไฟล์ Excel หรือรูปแบบหัวคอลัมน์ไม่ถูกต้อง (ต้องมีคอลัมน์ 'ชื่อ-นามสกุล' และ 'วันที่')");
+          alert("ไม่พบข้อมูลในไฟล์ Excel หรือรูปแบบหัวคอลัมน์ไม่ถูกต้อง");
         }
       } catch (err) {
         console.error(err);
-        alert("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel กรุณาตรวจสอบรูปแบบไฟล์");
+        alert("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel");
       }
     };
     reader.readAsBinaryString(file);
@@ -614,7 +651,7 @@ export default function TeamCalendarPage() {
   });
 
   const filteredShifts =
-    selectedMember === "all" ? tabFilteredShifts : tabFilteredShifts.filter((s) => s.memberId === selectedMember || s.type === "general");
+    selectedMember === "all" ? tabFilteredShifts : tabFilteredShifts.filter((s) => s.memberId === selectedMember || s.type === "general" || s.memberName.includes(members.find(m => m.id === selectedMember)?.name || ""));
 
   const sortedAllShifts = [...filteredShifts].sort((a, b) => {
     if (a.date !== b.date) {
@@ -684,6 +721,14 @@ export default function TeamCalendarPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleRematchShifts}
+            className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition shadow-sm"
+            title="กดปุ่มนี้เพื่อให้ระบบจับคู่ชื่อเวรเก่าเข้ากับรายชื่อกำลังพลโดยอัตโนมัติ"
+          >
+            <RefreshCw className="w-4 h-4" /> จับคู่ชื่อเวรเก่า
+          </button>
+
           {activeTab === "volunteer" && (
             <button
               onClick={() => setShowStats(!showStats)}
@@ -1262,7 +1307,7 @@ export default function TeamCalendarPage() {
                 type="text"
                 placeholder="ยศ และ ชื่อ-นามสกุล"
                 value={newMemberName}
-                onChange={(e) => setNewMemberName(e.target.value)}
+                onChange={(e) => setNewManagerName ? setNewMemberName(e.target.value) : null}
                 className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition shrink-0">
